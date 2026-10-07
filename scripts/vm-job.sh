@@ -44,6 +44,9 @@ qemu_alive() {
 
 booted=0
 cleanup() {
+    # Finish cleaning up even if more INT/TERM arrive (a service stop signals
+    # every process, then the orchestrator signals its group again).
+    trap '' INT TERM
     # A guest that never reached SSH cannot be shut down over SSH; skip
     # straight to QMP quit instead of waiting out the SSH and power-off timeouts.
     if qemu_alive && test "$booted" = 1; then

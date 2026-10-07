@@ -126,8 +126,17 @@ runtime-compiled compute kernel ran correctly through Reims on host llvmpipe.
 
 `gfx-device=none` (QEMU machine option; `GFX=none` in `launch-kvm.sh`) boots
 Tahoe without a paravirtual GPU: no Metal device, the gfx node stays in the
-device tree, boot time unchanged (~17 s). Use it for jobs that don't need
-Metal.
+device tree, boot time unchanged (~17 s). It is the better CI default:
+
+- With the GPU, an idle headless guest's WindowServer uses ~82 % of a core
+  (software rendering through llvmpipe); without it, 0.4 %.
+- Without a GPU, Xcode 26.4.1 builds iOS code (Swift package, `generic/platform=iOS`
+  in 26 s, `generic/platform=iOS Simulator` in 8 s), an iOS 26.4.1 simulator
+  boots (74 s) and `xcodebuild test` runs XCTest in it (83 s including boot).
+- With the GPU, booting an iOS simulator aborted QEMU on the host: llvmpipe's
+  LLVM backend cannot compile a `v4f16 = bitcast` in a fragment shader
+  ("Cannot select", `fs_variant_partial`). Same FP16 weakness as above,
+  reached through a different shader.
 
 ## The `avp,rtc` clock
 
@@ -232,6 +241,15 @@ guest: 1 GiB write+fsync 194 → 325 MiB/s; small fsync'd files unchanged
   and XProtect scanning alongside; its unpack directory is TCC-protected.
   `xcodebuild -downloadPlatform iOS` fails with "Unable to connect to
   simulator" until CoreSimulatorService has started (~30 s on first use).
+  The iOS 26.4.1 runtime is an 8.46 GB MobileAsset from `updates.cdn-apple.com`;
+  slirp delivers the host's full speed on wired Ethernet (~25 MB/s, about
+  6 min) but ran at ~330 KiB/s on a Wi-Fi host, so bake it on a wired host.
+- Spotlight indexing is off on the Data volume, but `mds` stays resident
+  (~10 CPU-s per idle 10 min). XProtect's launchd jobs are SIP-protected:
+  `launchctl disable` does not persist and `bootout` is refused ("Operation
+  not permitted while System Integrity Protection is engaged"). Its everyday
+  cost is small (~2 CPU-s per idle 10 min); occasional remediator scans are
+  heavier. Disabling it needs SIP off (recoveryOS).
 - Software update checks cannot be turned off from inside a 26.4 image:
   `softwareupdate --schedule off` is a no-op and
   `/Library/Preferences/com.apple.SoftwareUpdate` keys are ignored. That needs
@@ -267,8 +285,16 @@ down. `vm-job.sh` runs the job SSH session in the background with `<&0` and
     `one-job --wait`.
   - A Forgejo on the VM host itself is reachable from guests at
     `http://10.0.2.2:<port>` (slirp); set its `ROOT_URL` accordingly.
-- Known gap: a slot killed mid-job leaves its pending ephemeral registration
-  offline until removed.
+- Known gap: a slot stopped before it gets a job (service restart, host
+  reboot) leaves its ephemeral registration offline in Forgejo until removed
+  by an admin; in API mode the orchestrator deletes it.
+- systemd units (`systemd/`): run the script via `/usr/bin/bash`, because
+  Fedora's SELinux refuses to exec `user_home_t` scripts from a service
+  (203/EXEC). `vm-job.sh` ignores further INT/TERM once cleanup starts, so a
+  stop (every process gets SIGTERM, then the orchestrator signals its group
+  again) still discards each guest and clone. `runner-service.sh` removes
+  orphaned run directories at start. `LogFilterPatterns` drops one-job's
+  2-second poll lines.
 
 ## Linux restore experiment (unfinished)
 
