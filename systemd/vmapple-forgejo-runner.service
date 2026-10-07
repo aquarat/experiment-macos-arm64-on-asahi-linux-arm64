@@ -19,11 +19,14 @@ ConditionPathExists=/etc/vmapple-runner/forgejo.env
 User=<runner-user>
 WorkingDirectory=/path/to/checkout
 EnvironmentFile=/etc/vmapple-runner/forgejo.env
-ExecStart=/path/to/checkout/scripts/runner-service.sh forgejo
-# The orchestrator stops its slots, and each slot shuts its guest down.
-KillMode=mixed
+ExecStart=/usr/bin/bash /path/to/checkout/scripts/runner-service.sh forgejo
+# Run via bash: SELinux (Fedora) refuses to exec scripts labelled user_home_t.
+# Stop: every process gets SIGTERM; each vm-job then discards its guest and
+# clone (KillMode=control-group, the default) before systemd's SIGKILL.
 TimeoutStopSec=150
 Restart=on-failure
+# forgejo-runner one-job logs every 2 s poll; keep those out of the journal.
+LogFilterPatterns=~received no task
 RestartSec=60
 
 [Install]

@@ -19,9 +19,10 @@ ConditionPathExists=/etc/vmapple-runner/github.env
 User=<runner-user>
 WorkingDirectory=/path/to/checkout
 EnvironmentFile=/etc/vmapple-runner/github.env
-ExecStart=/path/to/checkout/scripts/runner-service.sh gha
-# The orchestrator stops its slots, and each slot shuts its guest down.
-KillMode=mixed
+ExecStart=/usr/bin/bash /path/to/checkout/scripts/runner-service.sh gha
+# Run via bash: SELinux (Fedora) refuses to exec scripts labelled user_home_t.
+# Stop: every process gets SIGTERM; each vm-job then discards its guest and
+# clone (KillMode=control-group, the default) before systemd's SIGKILL.
 TimeoutStopSec=150
 Restart=on-failure
 RestartSec=60

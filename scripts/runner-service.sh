@@ -11,6 +11,11 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 profile="${HOST_PROFILE:-$repo_root/hosts/$(hostname -s).env}"
 test -f "$profile" || { echo "no host profile $profile" >&2; exit 1; }
 set -a; . "$profile"; set +a
+# Discard run directories (guest disk clones) left by a crash or power loss.
+for d in "$repo_root"/artifacts/runs/job-*/; do
+    test -d "$d" || continue
+    pgrep -f -- "${d%/}/" >/dev/null || rm -rf -- "$d"
+done
 case "${1:-}" in
 forgejo) exec "$repo_root/scripts/forgejo-ephemeral-runner.sh" "${VM_SLOTS:-1}" ;;
 gha)     exec "$repo_root/scripts/gha-ephemeral-runner.sh" "${VM_SLOTS:-1}" ;;
