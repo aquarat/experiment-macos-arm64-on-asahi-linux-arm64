@@ -1,0 +1,30 @@
+# Forgejo Actions on throwaway macOS guests. Install:
+#   sudo install -m 644 systemd/vmapple-forgejo-runner.service /etc/systemd/system/
+#   sudo install -d -m 700 /etc/vmapple-runner
+#   sudo install -m 600 /dev/null /etc/vmapple-runner/forgejo.env   # then fill in:
+#     FORGEJO_URL=https://forge.example
+#     FORGEJO_REGISTRATION_TOKEN=...      (or FORGEJO_TOKEN + FORGEJO_SCOPE)
+#   Before installing, replace <runner-user> with the account that owns the
+#   checkout and VM images, and /path/to/checkout with the checkout path.
+#   sudo systemctl daemon-reload && sudo systemctl enable --now vmapple-forgejo-runner
+# Each unit starts VM_SLOTS guests (hosts/<host>.env). Apple's licence allows two
+# macOS VMs per Mac: run one of the two units per host, or split VM_SLOTS.
+[Unit]
+Description=Forgejo Actions runner: ephemeral macOS guests
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/vmapple-runner/forgejo.env
+
+[Service]
+User=<runner-user>
+WorkingDirectory=/path/to/checkout
+EnvironmentFile=/etc/vmapple-runner/forgejo.env
+ExecStart=/path/to/checkout/scripts/runner-service.sh forgejo
+# The orchestrator stops its slots, and each slot shuts its guest down.
+KillMode=mixed
+TimeoutStopSec=150
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

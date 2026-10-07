@@ -1,0 +1,37 @@
+--- a/hw/vmapple/bdif.c
++++ b/hw/vmapple/bdif.c
+@@ -75,8 +75,21 @@
+ #define VBLK_RET_SUCCESS  0
+ #define VBLK_RET_FAILED   1
+ 
++/*
++ * REG_NEXT_DEVICE reports a device's size in 512-byte sectors. It used to be
++ * hard-coded to 64 GiB (root) and 32 MiB (aux), so the booter rejects a root
++ * disk of any other size (its GPT disagrees). Report the backing size.
++ */
++static uint64_t bdif_sectors(BlockBackend *blk, uint64_t fallback)
++{
++    int64_t len = blk ? blk_getlength(blk) : -1;
++
++    return len > 0 ? (uint64_t)len / 512 : fallback;
++}
++
+ static uint64_t bdif_read(void *opaque, hwaddr offset, unsigned size)
+ {
++    VMAppleBdifState *s = opaque;
+     uint64_t ret = -1;
+     uint64_t devid = offset & REG_DEVID_MASK;
+ 
+@@ -102,10 +115,10 @@
+     case REG_NEXT_DEVICE:
+         switch (devid) {
+         case DEVID_ROOT:
+-            ret = 0x8000000;
++            ret = bdif_sectors(s->root, 0x8000000);
+             break;
+         case DEVID_AUX:
+-            ret = 0x10000;
++            ret = bdif_sectors(s->aux, 0x10000);
+             break;
+         }
+         break;

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Entry point for the runner systemd units: load this host's profile, then
+# run one of the ephemeral runner orchestrators with its VM_SLOTS.
+#
+#   scripts/runner-service.sh forgejo|gha
+#
+# The host profile is hosts/$(hostname -s).env (or HOST_PROFILE). Credentials
+# come from the unit's EnvironmentFile, never from this repository.
+set -euo pipefail
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+profile="${HOST_PROFILE:-$repo_root/hosts/$(hostname -s).env}"
+test -f "$profile" || { echo "no host profile $profile" >&2; exit 1; }
+set -a; . "$profile"; set +a
+case "${1:-}" in
+forgejo) exec "$repo_root/scripts/forgejo-ephemeral-runner.sh" "${VM_SLOTS:-1}" ;;
+gha)     exec "$repo_root/scripts/gha-ephemeral-runner.sh" "${VM_SLOTS:-1}" ;;
+*) echo "usage: $0 forgejo|gha" >&2; exit 2 ;;
+esac
