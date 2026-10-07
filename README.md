@@ -9,6 +9,65 @@ This is research code, not a polished virtual-machine product. It patches the
 Asahi kernel, QEMU, and Reims to bridge assumptions that normally only hold
 when `vmapple` runs under Apple's Hypervisor.framework.
 
+## M1 Max / M1 Ultra, Fedora 44: headless ephemeral runners
+
+On M1 Max (t6001) and M1 Ultra (t6002) hosts running Fedora Asahi Remix 44,
+this tree boots **macOS 13.6 Ventura and macOS 26.4 Tahoe** under KVM to SSH
+in about 10–20 s, with no host window, desktop session or GDB. Each job runs
+in a throwaway reflink clone of a read-only golden bundle. Technical findings,
+failures and measurements are summarised in [docs/NOTES.md](docs/NOTES.md).
+Differences from the M2 Pro flow below:
+
+| Layer | Change |
+| --- | --- |
+| Host kernel | Stock Fedora Asahi `kernel-16k` plus the two KVM patches in `patches/linux-7.1.13-*` (Apple PAuth VM-key context, in-KVM emulation of the no-syndrome GIC store). `scripts/build-host-kernel.sh` builds them into an RPM from the host's own base SRPM. |
+| QEMU | `scripts/build-qemu.sh` builds aquarat/reims-vgpu and its `vendor/qemu` (aquarat/qemu-reims-vgpu: upstream QEMU + steelbrain's vmapple/Reims branch + KVM, BDIF sizes, PAC HVC x0, headless polling, the `avp,rtc` clock, `gfx-device=none`). No patch files. `scripts/sync-upstream.sh` merges upstream into both forks. |
+| Renderer | `VK_DRIVER_FILES=…/lvp_icd.aarch64.json` (llvmpipe). Mesa's Asahi compiler asserts on Reims FP16 shaders. |
+| macOS 26 provisioning | Restore with macosvm forcing the version-1 hardware model (`patches/macosvm-hwmodel-override.patch`, `MACOSVM_HWMODEL_B64`). Create the account from a KVM single-user boot over the serial console (`scripts/serial-shell.py`), because the Data volume is keystore-encrypted. |
+
+Day-to-day use on the host:
+
+```sh
+scripts/vm-job.sh 'sw_vers; xcodebuild -version'            # one throwaway guest
+GOLDEN=~/vm-artifacts/tahoe-26.4-25E246-v7 CPUS=8 RAM=16G scripts/vm-job.sh …
+scripts/bake-golden.sh <src> <dst> "<note>" '<provisioning command>'
+scripts/bake-xcode.sh <src> <dst> Xcode_*.xip [--ios-platform]
+
+# CI: one ephemeral runner registration and one throwaway guest per job
+set -a; . hosts/<host>.env; set +a
+FORGEJO_URL=https://forgejo.example FORGEJO_TOKEN=… FORGEJO_SCOPE=repos/<owner>/<repo> \
+    scripts/forgejo-ephemeral-runner.sh "$VM_SLOTS"     # runs-on: macos-26-arm64
+GH_TOKEN=… GH_SCOPE=repos/<owner>/<repo> scripts/gha-ephemeral-runner.sh "$VM_SLOTS"
+```
+
+`systemd/vmapple-{forgejo,gha}-runner.service` run the same orchestrators as
+services through `scripts/runner-service.sh`; edit `User=` and the checkout
+paths before installing them.
+
+The golden image `tahoe-26.4-25E246-v7` used in these examples (baked under
+the `avp,rtc` QEMU, so NVRAM holds an RTC offset) contains the GitHub Actions
+runner 2.338.0, forgejo-runner 13.2.0 (cross-compiled for darwin-arm64),
+Node 24 LTS, the Command Line Tools for Xcode 26.6, and a DHCP service on an
+optional second NIC. Golden images are built locally and never published.
+
+Host portability: `scripts/build-host-kernel.sh <base.src.rpm> <buildid>
+[extra patches]` builds the host kernel from whatever Fedora Asahi kernel a
+machine runs. `hosts/<host>.env` holds per-machine sizing and settings; copy
+`hosts/example.env.example` to start one. On hosts with wired LAN,
+`sudo scripts/host-net-setup.sh taps br0 <slots>` plus `NET_TAP_PREFIX=vmtap`
+gives each slot its own DHCP address on the LAN, with a stable MAC per slot.
+
+Known issue: about 4–5 % of macOS 26 boots stall in early userspace and never
+reach SSH (down from 10–15 % before the `avp,rtc` clock and the v7 image).
+`vm-job.sh` and `bake-golden.sh` retry automatically from a fresh clone. The
+remaining stall has an idle guest with drained virtio queues; see
+[docs/NOTES.md](docs/NOTES.md). `GFX=none` boots without the paravirtual GPU
+(no Metal) for jobs that don't need it.
+
+`vm-job.sh` and `gha-ephemeral-runner.sh` use `set -uo pipefail` without
+`-e` on purpose: they must capture a failing job's status and still shut the
+guest down and clean up.
+
 ## What works
 
 The known-good configuration boots macOS Ventura 13.6 (22G120) to the normal
@@ -22,9 +81,9 @@ graphical Setup Assistant on an M2 Pro host running Fedora Asahi Remix:
 - user-mode networking with optional SSH forwarding on `localhost:2222`
 
 Rendering was verified with Mesa llvmpipe because the experimental host kernel
-used for the successful run did not include the Asahi DRM driver. The complete
-investigation, including failed approaches and checksums, is in
-[JOURNAL.md](JOURNAL.md).
+used for the successful run did not include the Asahi DRM driver. A summary
+of the investigation, including failed approaches, is in
+[docs/NOTES.md](docs/NOTES.md).
 
 ## Why patches are needed
 
@@ -130,11 +189,10 @@ Use the installed 16 KiB kernel configuration, build `Image`, `modules`,
 with a distinct `LOCALVERSION` such as `-vmapple2`. Keep the stock kernel as
 the default and select the experiment for one boot first.
 
-The exact Fedora source-package preparation, build, installation commands,
-checksums, and the one failed `/boot` attempt are recorded under
-“Custom Asahi KVM VM-key kernel built and installed” and “Custom Asahi KVM
-Apple PAuth-context kernel vmapple2” in [JOURNAL.md](JOURNAL.md). This patch is
-tied to that kernel revision; do not apply it blindly to another release.
+This patch is tied to that kernel revision; do not apply it blindly to
+another release. For Fedora Asahi 7.1.x kernels use
+`scripts/build-host-kernel.sh`, which applies the `patches/linux-7.1.13-*`
+patches to the host's own base SRPM.
 
 After booting the patched kernel:
 
@@ -206,8 +264,8 @@ The repository also contains an unfinished attempt to provision directly from
 Asahi Linux. `scripts/launch-dfu.sh` exposes AVPBooter's virtual DFU device,
 `scripts/vmapple-usbip.py` bridges it to Linux `vhci-hcd`, and
 `scripts/probe-vmapple-usb.py` exercises the transport. The work reached real
-DFU transfers but did not produce the known-good guest used above. See the
-journal before continuing that path.
+DFU transfers but did not produce the known-good guest used above. See
+[docs/NOTES.md](docs/NOTES.md) before continuing that path.
 
 ## Project boundaries
 
