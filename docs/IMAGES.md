@@ -386,7 +386,7 @@ aborts QEMU on the host (llvmpipe cannot compile an FP16 fragment shader).
 
 ```sh
 scripts/bake-golden.sh ~/vm-artifacts/tahoe-26.4-25E246-v10 ~/vm-artifacts/tahoe-26.4-25E246-v11 \
-    "+ CI tools (images/60-ci-tools.sh): Homebrew, JDK 21, actionlint, shellcheck, xcodegen, xcbeautify, SwiftLint, Carthage, CocoaPods, fastlane" \
+    "CI tools (images/60-ci-tools.sh): Homebrew, JDK 21, actionlint, shellcheck, xcodegen, xcbeautify, SwiftLint, Carthage, CocoaPods, fastlane" \
     "bash -s" < images/60-ci-tools.sh
 ```
 

@@ -2,7 +2,7 @@
 # Layer 60: CI toolchain on top of Xcode + iOS simulator (layer 50).
 # Runs inside the guest as the guest user (passwordless sudo):
 #
-#   scripts/bake-golden.sh <src> <dst> "+ CI tools (images/60-ci-tools.sh)" "bash -s" < images/60-ci-tools.sh
+#   scripts/bake-golden.sh <src> <dst> "CI tools (images/60-ci-tools.sh)" "bash -s" < images/60-ci-tools.sh
 #
 # Installs Homebrew and, from it: JDK 21 (Temurin-equivalent OpenJDK), actionlint,
 # shellcheck, xcodegen, xcbeautify, SwiftLint, Carthage, CocoaPods, fastlane.
