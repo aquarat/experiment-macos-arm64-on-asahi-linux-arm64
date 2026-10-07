@@ -1,0 +1,10 @@
+# Config for `forgejo-runner cache-server` (systemd/vmapple-runner-cache.service).
+log:
+  level: info
+cache:
+  enabled: true
+  dir: /var/lib/vmapple-runner-cache
+  # Loopback only: slirp guests reach it as 10.0.2.2.
+  host: 127.0.0.1
+  port: 4100
+  secret_url: file:$CREDENTIALS_DIRECTORY/secret

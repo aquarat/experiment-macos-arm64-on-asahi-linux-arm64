@@ -1,0 +1,34 @@
+# Persistent Actions cache shared by the throwaway runner guests: forgejo-runner's
+# cache server on the host's loopback. Guests reach it through slirp at
+# http://10.0.2.2:<port>/ (FORGEJO_CACHE_SERVER in /etc/vmapple-runner/forgejo.env).
+# Install:
+#   sudo install -m 755 forgejo-runner-<ver>-linux-arm64 /usr/local/bin/forgejo-runner
+#   sudo restorecon /usr/local/bin/forgejo-runner   # SELinux hosts
+#   sudo install -d -m 700 /etc/vmapple-runner
+#   openssl rand -hex 32 | sudo install -m 600 /dev/stdin /etc/vmapple-runner/cache-secret
+#   sudo install -m 600 systemd/vmapple-runner-cache.yaml /etc/vmapple-runner/cache-server.yaml
+#   sudo install -m 644 systemd/vmapple-runner-cache.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now vmapple-runner-cache
+#   # and add to /etc/vmapple-runner/forgejo.env:
+#   #   FORGEJO_CACHE_SERVER=http://10.0.2.2:4100/
+#   #   FORGEJO_CACHE_SECRET=<the same secret>
+[Unit]
+Description=Actions cache server for the ephemeral macOS runner guests
+After=network.target
+
+[Service]
+DynamicUser=yes
+StateDirectory=vmapple-runner-cache
+# /etc/vmapple-runner stays root-only; the dynamic user gets copies as credentials.
+LoadCredential=secret:/etc/vmapple-runner/cache-secret
+LoadCredential=config:/etc/vmapple-runner/cache-server.yaml
+ExecStart=/usr/local/bin/forgejo-runner cache-server -c ${CREDENTIALS_DIRECTORY}/config
+# The server binds every interface whatever `host:` says; allow loopback only
+# (slirp guests and the runner's cache proxies all connect from 127.0.0.1).
+IPAddressAllow=localhost
+IPAddressDeny=any
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

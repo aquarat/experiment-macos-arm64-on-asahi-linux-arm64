@@ -1,0 +1,27 @@
+# Forgejo Actions runner for Linux jobs: each job in a fresh Docker container.
+# Install (once; registration needs the instance's runner registration token):
+#   sudo useradd --system --create-home --home-dir /var/lib/forgejo-runner \
+#        --shell /usr/sbin/nologin -G docker forgejo-runner   # docker group = root-equivalent
+#   sudo install -m 600 -o forgejo-runner systemd/forgejo-runner-docker.yaml /var/lib/forgejo-runner/config.yaml
+#   sudo -u forgejo-runner sh -c 'cd /var/lib/forgejo-runner && forgejo-runner register \
+#        --no-interactive --instance https://forge.example --token <registration token> \
+#        --name <host>-docker --labels ubuntu-latest:docker://node:24-bookworm,linux:docker://node:24-bookworm'
+#   sudo install -m 644 systemd/forgejo-runner-docker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now forgejo-runner-docker
+# The cache secret is /etc/vmapple-runner/cache-secret (systemd/vmapple-runner-cache.service).
+[Unit]
+Description=Forgejo Actions runner (Linux jobs in Docker containers)
+After=network-online.target docker.service vmapple-runner-cache.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+User=forgejo-runner
+WorkingDirectory=/var/lib/forgejo-runner
+LoadCredential=cache-secret:/etc/vmapple-runner/cache-secret
+ExecStart=/usr/local/bin/forgejo-runner daemon -c /var/lib/forgejo-runner/config.yaml
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

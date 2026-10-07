@@ -49,6 +49,7 @@ the `avp,rtc` QEMU, so NVRAM holds an RTC offset) contains the GitHub Actions
 runner 2.338.0, forgejo-runner 13.2.0 (cross-compiled for darwin-arm64),
 Node 24 LTS, the Command Line Tools for Xcode 26.6, and a DHCP service on an
 optional second NIC. Golden images are built locally and never published.
+[docs/IMAGES.md](docs/IMAGES.md) is the step-by-step recipe for building the image chain from an Apple restore image (`images/` holds one script per layer).
 
 Host portability: `scripts/build-host-kernel.sh <base.src.rpm> <buildid>
 [extra patches]` builds the host kernel from whatever Fedora Asahi kernel a

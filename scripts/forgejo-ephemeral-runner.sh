@@ -28,7 +28,10 @@
 # CPUS, RAM, RUNNER_LABELS (default macos-26-arm64:host,macos:host),
 # FORGEJO_RUNNER_URL (instance URL as seen from the guest; default
 # FORGEJO_URL; a Forgejo on the VM host itself is http://10.0.2.2:<port>),
-# JOB_TIMEOUT (default 10800 s).
+# JOB_TIMEOUT (default 10800 s), FORGEJO_CACHE_SERVER + FORGEJO_CACHE_SECRET
+# (a persistent `forgejo-runner cache-server` as seen from the guest, e.g.
+# http://10.0.2.2:4100/ for one on the VM host; systemd/vmapple-runner-cache.service),
+# so actions/cache survives the throwaway guests.
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,6 +48,15 @@ labels="${RUNNER_LABELS:-macos-26-arm64:host,macos:host}"
 runner_url="${FORGEJO_RUNNER_URL:-$FORGEJO_URL}"
 api="${FORGEJO_URL%/}/api/v1/${FORGEJO_SCOPE:-}/actions/runners"
 export JOB_TIMEOUT="${JOB_TIMEOUT:-10800}"
+cache_server="${FORGEJO_CACHE_SERVER:-}"
+cache_secret="${FORGEJO_CACHE_SECRET:-}"
+if test -n "$cache_server" && test -z "$cache_secret"; then
+    echo "FORGEJO_CACHE_SERVER needs FORGEJO_CACHE_SECRET" >&2; exit 2
+fi
+# Guest-side snippet: read the cache secret (second stdin line) and, if set,
+# write the runner config (with a cache section pointing the job's cache
+# proxy at the shared server). Always passed with -c: zsh would not split a $cfg.
+guest_cfg="read -r cs; umask 077; { printf 'log:\\n  level: info\\n'; if test -n \"\$cs\"; then printf 'cache:\\n  enabled: true\\n  external_server: %s\\n  secret: %s\\n' $(printf %q "$cache_server") \"\$cs\"; fi; } > ~/.runner-config.yml; unset cs"
 export GOLDEN="${GOLDEN:-$HOME/vm-artifacts/tahoe-26.4-25E246-v7}" CPUS="${CPUS:-8}" RAM="${RAM:-16G}"
 
 label_args=""
@@ -67,8 +79,8 @@ slot() {
         name="vmapple-$(hostname -s)-$n-$(date +%Y%m%d%H%M%S)"
         if test -n "${FORGEJO_REGISTRATION_TOKEN:-}"; then
             echo "[slot $n] $name registering in a fresh guest" >&2
-            printf '%s\n' "$FORGEJO_REGISTRATION_TOKEN" | "$repo_root/scripts/vm-job.sh" \
-                "read -r t; cd ~ && ~/forgejo-runner/forgejo-runner register --no-interactive --ephemeral --instance $(printf %q "$runner_url") --token \"\$t\" --name $name --labels $(printf %q "$labels") >&2 || exit 77; unset t; exec ~/forgejo-runner/forgejo-runner one-job --wait"
+            printf '%s\n' "$FORGEJO_REGISTRATION_TOKEN" "$cache_secret" | "$repo_root/scripts/vm-job.sh" \
+                "read -r t; $guest_cfg; cd ~ && ~/forgejo-runner/forgejo-runner register --no-interactive --ephemeral --instance $(printf %q "$runner_url") --token \"\$t\" --name $name --labels $(printf %q "$labels") >&2 || exit 77; unset t; exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml"
             st=$?
             echo "[slot $n] $name finished with status $st" >&2
             if test "$st" = 77; then
@@ -84,8 +96,8 @@ slot() {
         fi
         read -r id uuid token < <(python3 -c 'import json,sys; r=json.load(sys.stdin); print(r["id"], r["uuid"], r["token"])' <<<"$reply")
         echo "[slot $n] $name (id $id) waiting for a job" >&2
-        printf '%s\n' "$token" | "$repo_root/scripts/vm-job.sh" \
-            "read -r t; umask 077; printf %s \"\$t\" > ~/.forgejo-runner-token; cd ~ && exec ~/forgejo-runner/forgejo-runner one-job --wait --url $(printf %q "$runner_url") --uuid $uuid --token-url file://\$HOME/.forgejo-runner-token$label_args"
+        printf '%s\n' "$token" "$cache_secret" | "$repo_root/scripts/vm-job.sh" \
+            "read -r t; $guest_cfg; umask 077; printf %s \"\$t\" > ~/.forgejo-runner-token; cd ~ && exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml --url $(printf %q "$runner_url") --uuid $uuid --token-url file://\$HOME/.forgejo-runner-token$label_args"
         echo "[slot $n] $name finished with status $?" >&2
         # Ephemeral runners are removed by Forgejo after their job; remove a
         # registration left behind by a timeout or a guest that never booted.

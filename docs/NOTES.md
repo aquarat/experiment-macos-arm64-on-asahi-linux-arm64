@@ -174,7 +174,8 @@ reports a small negative `kern.monotoniclock_offset_usecs`, and timed
 initialises its AVP RTC plugin.
 
 Images baked under the PL031-only QEMU carry no NVRAM RTC offset; re-bake them
-once under the `avp,rtc` QEMU (the offset is stored in AUX).
+once under the `avp,rtc` QEMU (the offset is stored in AUX; layer 45 in
+[IMAGES.md](IMAGES.md)).
 
 ## Tahoe early-boot stall
 
@@ -233,6 +234,9 @@ guest: 1 GiB write+fsync 194 → 325 MiB/s; small fsync'd files unchanged
 (macOS `fsync` is not `F_FULLFSYNC`).
 
 ## Guest images and limits
+
+The full build recipe for the images (restore, account, every layer) is in
+[IMAGES.md](IMAGES.md); this section records the limits found on the way.
 
 - Command Line Tools install over slirp with `softwareupdate`, no Apple ID
   (Xcode 14.3 CLT on Ventura in ~3 min; Xcode 26.6 CLT on Tahoe in ~3 min).

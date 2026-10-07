@@ -1,0 +1,23 @@
+# forgejo-runner daemon for Linux jobs in throwaway Docker containers
+# (systemd/forgejo-runner-docker.service). Registration (.runner) and this file
+# live in the service user's home, /var/lib/forgejo-runner.
+log:
+  level: info
+runner:
+  file: /var/lib/forgejo-runner/.runner
+  capacity: 2
+  timeout: 3h
+  fetch_interval: 5s
+  # Labels come from .runner (set at registration):
+  #   ubuntu-latest:docker://node:24-bookworm,linux:docker://node:24-bookworm
+cache:
+  enabled: true
+  # The same persistent cache server the macOS guests use (loopback on this host);
+  # the runner's cache proxy relays the job containers' requests to it.
+  external_server: http://127.0.0.1:4100/
+  secret_url: file:$CREDENTIALS_DIRECTORY/cache-secret
+container:
+  network: ""
+  privileged: false
+  valid_volumes: []
+  docker_host: "-"
