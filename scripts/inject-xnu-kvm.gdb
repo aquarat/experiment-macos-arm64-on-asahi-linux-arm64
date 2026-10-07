@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 
-HANDOFF_PC = 0xACA00000
+HANDOFF_PC = int(os.environ.get("VMAPPLE_HANDOFF_PC", "0xACA00000"), 0)
 COMMAND_LINE_OFFSET = 108
 COMMAND_LINE_SIZE = 608
 DEVICE_TREE_POINTER_OFFSET = 96
@@ -47,8 +47,16 @@ if int(gdb.parse_and_eval("$pc")) != HANDOFF_PC:
 boot_args = int(gdb.parse_and_eval("$x1"))
 inferior = gdb.selected_inferior()
 revision, version = struct.unpack("<HH", bytes(inferior.read_memory(boot_args, 4)))
-if (revision, version) != (2, 2):
+if (revision, version) not in ((2, 2), (3, 2)):
     raise gdb.GdbError(f"unexpected boot_args revision/version {revision}/{version}")
+if revision == 3:
+    # macOS 26 passes revision 3. Accept it only if the revision-2 offsets
+    # still describe a plausible layout (device tree inside guest memory).
+    vb, pb, msz = struct.unpack("<QQQ", bytes(inferior.read_memory(boot_args + 8, 24)))
+    dtp, dtl = struct.unpack("<QI", bytes(inferior.read_memory(boot_args + DEVICE_TREE_POINTER_OFFSET, 12)))
+    if not (vb <= dtp < vb + msz and 0 < dtl < 4 * 1024 * 1024):
+        raise gdb.GdbError(f"boot_args rev 3 layout check failed: dt={dtp:#x}/{dtl:#x} virt={vb:#x} mem={msz:#x}")
+    print(f"boot_args revision 3 accepted: dt={dtp:#x} len={dtl:#x}")
 payload = (command_line + b"\0").ljust(COMMAND_LINE_SIZE, b"\0")
 inferior.write_memory(boot_args + COMMAND_LINE_OFFSET, payload)
 print(f"injected XNU boot arguments: {command_line.decode(errors='replace')}")
@@ -95,6 +103,14 @@ def qmp_call(command, arguments=None):
         if "error" in response:
             raise gdb.GdbError(f"QMP {command} failed: {response['error']}")
 
+
+if os.environ.get("QEMU_27ON86_KVM_MMIO_PATCH", "1") == "0":
+    qmp_file.close()
+    qmp.close()
+    print("XNU GIC MMIO patch disabled (QEMU_27ON86_KVM_MMIO_PATCH=0)")
+    breakpoint.delete()
+    gdb.execute("detach", to_string=True)
+    gdb.execute("quit", to_string=True)
 
 json.loads(qmp_file.readline())
 qmp_call("qmp_capabilities")

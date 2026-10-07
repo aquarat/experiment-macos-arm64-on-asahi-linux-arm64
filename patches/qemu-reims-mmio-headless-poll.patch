@@ -1,0 +1,21 @@
+--- a/hw/display/reims-vgpu-mmio.c
++++ b/hw/display/reims-vgpu-mmio.c
+@@ -1061,10 +1061,15 @@
+ 
+     rc = reims_vgpu_qemu_window_start(s->rust_handle, REIMS_VGPU_EFI_BOOT_WIDTH,
+                                REIMS_VGPU_EFI_BOOT_HEIGHT);
++    /*
++     * Poll the device whether or not a host window exists. Without a window
++     * the only other caller of device_poll is the console refresh, which never
++     * runs headless (-display none), so the display-online handshake and
++     * queued host actions stalled and macOS 26 blocked in IOMFB swap waits.
++     */
++    s->poll_timer = timer_new_ms(QEMU_CLOCK_HOST, reims_vgpu_mmio_poll_tick, s);
++    timer_mod(s->poll_timer, qemu_clock_get_ms(QEMU_CLOCK_HOST));
+     if (rc == REIMS_VGPU_QEMU_OK) {
+-        s->poll_timer = timer_new_ms(QEMU_CLOCK_HOST,
+-                                     reims_vgpu_mmio_poll_tick, s);
+-        timer_mod(s->poll_timer, qemu_clock_get_ms(QEMU_CLOCK_HOST));
+ #if defined(CONFIG_DARWIN)
+         reims_vgpu_mmio_window_owner = s;
+         qemu_main = reims_vgpu_mmio_window_main_loop;

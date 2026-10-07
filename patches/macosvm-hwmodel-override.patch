@@ -1,0 +1,18 @@
+diff --git a/macosvm/VMInstance.m b/macosvm/VMInstance.m
+index 3807cbb..538a00e 100644
+--- a/macosvm/VMInstance.m
++++ b/macosvm/VMInstance.m
+@@ -338,6 +338,13 @@ - (instancetype) configure {
+         VZMacOSRestoreImage *img = self.restoreImage;
+         VZMacOSConfigurationRequirements *req = [img mostFeaturefulSupportedConfiguration];
+         hardwareModelData = req.hardwareModel.dataRepresentation;
++        /* local experiment: force a specific hardware model descriptor */
++        const char *hwOverride = getenv("MACOSVM_HWMODEL_B64");
++        if (hwOverride && *hwOverride) {
++            hardwareModelData = [[NSData alloc] initWithBase64EncodedString:[NSString stringWithUTF8String:hwOverride] options:0];
++            VZMacHardwareModel *forced = [[VZMacHardwareModel alloc] initWithDataRepresentation:hardwareModelData];
++            NSLog(@"hardware model override from MACOSVM_HWMODEL_B64, supported=%d", forced ? (int)forced.supported : -1);
++        }
+ 
+         NSLog(@"configure with restore, minimum requirements: %d CPUs, %lu RAM",
+               (int)req.minimumSupportedCPUCount, (unsigned long)req.minimumSupportedMemorySize);

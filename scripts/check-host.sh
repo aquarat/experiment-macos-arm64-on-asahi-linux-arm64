@@ -3,11 +3,14 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fleet_qemu="$repo_root/build/qemu-fleet/vendor/qemu/build/qemu-system-aarch64"
 gui_qemu="$repo_root/build/reims-linux-product/vendor/qemu/build/qemu-system-aarch64"
 development_gui_qemu="$repo_root/build/reims-linux/vendor/qemu/build/qemu-system-aarch64"
 headless_qemu="$repo_root/build/experiment-macOS-arm64-on-linux-x86/build/qemu-system-aarch64"
 if test -n "${QEMU_BIN:-}"; then
     qemu="$QEMU_BIN"
+elif test -x "$fleet_qemu"; then
+    qemu="$fleet_qemu"
 elif test -x "$gui_qemu"; then
     qemu="$gui_qemu"
 elif test -x "$development_gui_qemu"; then

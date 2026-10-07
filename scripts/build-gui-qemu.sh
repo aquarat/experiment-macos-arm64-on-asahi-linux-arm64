@@ -40,18 +40,26 @@ git -C "$output_dir" submodule update --init vendor/qemu
 git -C "$output_dir" apply "$repo_root/patches/reims-rust-linux-arm64.patch"
 git -C "$output_dir/vendor/qemu" apply \
     "$repo_root/patches/reims-qemu-linux-arm64.patch"
+# M1 Max / macOS 26 fixes: real BDIF disk sizes, PAC HVC result in x0.
+git -C "$output_dir/vendor/qemu" apply \
+    "$repo_root/patches/qemu-vmapple-bdif-disk-size.patch" \
+    "$repo_root/patches/qemu-vmapple-pac-hvc-x0.patch" \
+    "$repo_root/patches/qemu-reims-mmio-headless-poll.patch"
 
 (
     cd "$output_dir/vendor/qemu"
     ./configure \
         --target-list=aarch64-softmmu \
         --enable-kvm \
+        --enable-gnutls \
         --enable-gtk \
         --disable-docs \
         --disable-tools \
         -Dreims_vgpu_backend=vulkan \
         > configure-linux-aarch64.log 2>&1
-    ninja -C build qemu-system-aarch64 > build-linux-aarch64.log 2>&1
+    # Keymaps are needed for -vnc (run with -L build/qemu-bundle/usr/local/share/qemu).
+    ninja -C build qemu-system-aarch64 pc-bios/keymaps/en-us \
+        > build-linux-aarch64.log 2>&1
 )
 
 qemu="$output_dir/vendor/qemu/build/qemu-system-aarch64"

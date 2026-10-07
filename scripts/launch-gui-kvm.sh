@@ -12,6 +12,11 @@ qemu_pid=
 
 die() { echo "error: $*" >&2; exit 1; }
 
+if test "${INJECT:-1}" = 0; then
+    # No GDB hand-off: requires a host kernel that emulates no-syndrome MMIO
+    # stores (patches/linux-7.1.13-kvm-nisv-ldst.patch); default boot-args.
+    exec "$repo_root/scripts/launch-kvm.sh"
+fi
 command -v gdb >/dev/null 2>&1 || die "missing command: gdb"
 test -x "$injector" || die "missing XNU injector: $injector"
 [[ "$gdb_port" =~ ^[0-9]+$ ]] || die "GDB_PORT must be numeric"
@@ -41,7 +46,7 @@ test -S "$qmp_socket" || die "QMP socket did not appear: $qmp_socket"
 QEMU_27ON86_GDB_PORT="$gdb_port" \
 QEMU_27ON86_XNU_BOOT_ARGS="$boot_args" \
 QEMU_27ON86_CSR_CONFIG="${CSR_CONFIG:-0x2}" \
-QEMU_27ON86_KVM_MMIO_PATCH=1 \
+QEMU_27ON86_KVM_MMIO_PATCH="${KVM_MMIO_PATCH:-1}" \
 QEMU_27ON86_QMP_SOCKET="$qmp_socket" \
     "$injector"
 
