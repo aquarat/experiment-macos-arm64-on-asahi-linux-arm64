@@ -10,9 +10,9 @@ Asahi Linux, using KVM, QEMU's `vmapple` machine, and an Apple-provided
 
 - Treat this repository as an experimental lab. Prefer small, inspectable
   scripts and reproducible commands over undocumented manual steps.
-- Keep `JOURNAL.md` current. Add a dated entry for every meaningful discovery,
-  experiment, failure, decision, or change in direction. Include exact commands,
-  versions, checksums, and relevant error output.
+- Keep `docs/NOTES.md` current with reusable technical findings: exact
+  commands, versions, checksums, and relevant error output. Keep machine
+  names, addresses and other host-specific details out of the repository.
 - Never commit Apple firmware, IPSWs, restore images, VM disks, machine
   identifiers, or other large/proprietary artifacts. Keep them under `artifacts/`
   or outside the repository; `.gitignore` must cover them.
@@ -28,7 +28,7 @@ Asahi Linux, using KVM, QEMU's `vmapple` machine, and an Apple-provided
   default to non-destructive behavior.
 - Capture upstream URLs and commit IDs for QEMU or provisioning code. Pin known
   working revisions instead of silently tracking a moving branch.
-- Preserve failed approaches in the journal; they are useful evidence.
+- Preserve failed approaches in the notes; they are useful evidence.
 
 ## Definition of done
 
