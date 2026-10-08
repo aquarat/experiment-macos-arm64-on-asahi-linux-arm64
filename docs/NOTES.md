@@ -218,13 +218,159 @@ debug golden that logs network/configd/clock state to the serial console.
 **Avoid** QMP `x-query-virtio-status` and HMP `info virtio-status` on these
 guests: the first crashed QEMU, the second hung the monitor.
 
-## Memory balloon
+## Memory balloon (macOS guests)
 
-Tahoe binds Apple's `AppleVirtIOBalloon` to `virtio-balloon-pci` and reads the
-target (`num_pages`), and guest free pages do drop, but it never posts page
-frames on the inflate queue or writes `actual`, so no host memory is released.
-Memory returns to the host only when QEMU exits, which is why jobs use
-throwaway guests.
+Guest RAM that macOS has touched stays resident on the host until QEMU exits
+(a freshly booted 10 GiB Tahoe guest already holds ~6.5 GB). The balloon
+gives it back while the guest runs: `BALLOON=1` (`launch-kvm.sh`) adds
+`virtio-balloon-pci` with `macos-units=on` (needs the aquarat QEMU fork) and
+`vm-job.sh` runs `scripts/balloon-governor.py` next to the job.
+
+### AppleVirtIOBalloon protocol (macOS 26.4)
+
+From the driver's disassembly, confirmed with QEMU traces
+(`-trace virtio_balloon_macos_*`, `-msg timestamp=on`):
+
+- Features taken: MUST_TELL_HOST, STATS_VQ, VERSION_1, INDIRECT_DESC,
+  EVENT_IDX (never DEFLATE_ON_OOM, free-page hints or reporting). Queues:
+  inflate 0, deflate 1, stats 2. A buffer is one array of u32 4 KiB PFNs,
+  four consecutive ones per 16 KiB guest page.
+- The driver counts surrendered memory itself (P, 4 KiB units) and never
+  uses `actual` (it adds the used length / 4, which QEMU reports as 0). On a
+  config interrupt and after every completed inflate or deflate buffer it
+  runs `N = num_pages; if (N > P) inflate(P, N); if (N < P) deflate(P, N)`.
+- Unit mix-up: `inflate` allocates N - P **16 KiB** pages and adds 4 (N - P)
+  to P; `deflate` gives back P - N 16 KiB pages. Every request moves 4x.
+- The second test reuses the N read before the inflate, so every inflate of
+  d pages is immediately followed by a deflate of 3d pages, taken from the
+  inflate buffers the device has already completed. It succeeds once that
+  set holds 3d pages. This is the "spontaneous" deflate; it has nothing to do
+  with memory pressure (the driver has no pressure hook). Trace with plain
+  quarter-steps (`macos-hold=off`): after three 256 MiB steps every 65536-PFN
+  inflate is followed 0.3-2 ms later by a 196608-PFN deflate, and the
+  balloon saw-tooths between ~0.25 and 1.5 GiB without reaching a 6 GiB
+  target.
+- Each request is limited to (free descriptors) x 4096 of its units, but a
+  16 KiB segment of the PFN array holds 1024 of them. With QEMU's 128-entry
+  queues a deflate above 2 GiB fails to post and is retried forever (a 5 GiB
+  deflate never arrived).
+- P grows when a buffer is posted, before the device consumes it; a config
+  read in between sees a stale count.
+- Guest-side cost: one 16 KiB `IOBufferMemoryDescriptor` per page. Inflate
+  allocates ~1.2 GiB/s; giving memory back is bounded by the driver freeing
+  them (~1 GiB/s, deflate rounds wait for the previous round's frees).
+  The driver also re-runs its handler on stats interrupts (config reads
+  every 5 s with `guest-stats-polling-interval=5`). Before the changes below
+  it never inflated without stats polling, so the launcher keeps polling on
+  (the stats themselves are empty); 1 s instead of 5 s polling does not
+  change deflate times.
+
+### QEMU side (`macos-units=on`, fork branch with `macos-hold`)
+
+- `actual` counts the PFNs received (4 KiB units); guest writes are ignored.
+- Config reads first consume any posted buffers, so `actual` equals the
+  driver's P whenever it compares.
+- Inflate: present `actual + min(target - actual, macos-step) / 4`
+  (`macos-step`, default 65536 = 256 MiB per round). With `macos-hold=on`
+  (default) the device discards the pages at once (`fallocate` punch-hole on
+  memfd RAM, `MADV_DONTNEED` on anonymous RAM; contiguous PFN runs in one
+  call) but keeps the buffer instead of completing it, so the completed set
+  stays empty and the stray 3x deflate always fails; one config interrupt per
+  consumed buffer asks for the next round.
+- Deflate: complete just enough held buffers (newest first), then present
+  `actual - min(completed, 2 GiB) / 4` so the driver gives back exactly those;
+  the overshoot (< one round) is inflated again. Nothing to do on the host
+  (pages refault when touched).
+- Inflate and deflate queues have 1024 entries.
+
+Measured (10 GiB guest, GPU on, memfd RAM): targets 4096, 6144, 3072, 9216,
+2048, 10240, 5120, 1536, 7168, 10240 MiB were each reached exactly (no
+oscillation, no stray deflates); inflate 6 GiB in 5.2 s, 7 GiB in 7.4 s;
+deflate 6 GiB in 4.6 s, 8 GiB in 6.2 s (QEMU's count; the guest finishes
+freeing shortly after). Host memory follows: an idle guest squeezed to
+1.5 GiB costs 1.7 GB.
+
+Notes on measuring and memfd RAM:
+- Punch-holes free memfd memory with shmem THP too: in a test memfd with
+  32 MiB folios, punching every other 16 KiB page of 256 MiB released
+  exactly 128 MiB (folios split; refaulted holes come back as 16 KiB pages).
+  QEMU's memfd guest RAM gets no THP at all, though: its mapping starts
+  16 KiB short of a 32 MiB boundary (guard page), `THPeligible: 0` even with
+  `shmem_enabled=advise`.
+- For memfd RAM, QEMU's `Rss` under-counts (pages stay in the memfd but are
+  not mapped in QEMU's page tables); count the memfd's allocated blocks
+  (`stat -L -c %b /proc/<pid>/fd/<memfd>`) plus `Pss_Anon`.
+
+### Governor (`scripts/balloon-governor.py`)
+
+One per guest, Python stdlib only, started by `vm-job.sh` after the guest
+answers SSH and stopped before shutdown (log: `job-logs/<job>/balloon-governor.log`).
+
+- Guest state: one long-lived `ssh ... exec vm_stat 1` (one line per second,
+  no process per sample). `available` = free + speculative + purgeable + the
+  file-backed share of the inactive queue. `vm_stat` repeats its header with
+  a totals line, which is skipped. Pressure = compressions + swap-outs.
+- Balloon size: QMP `query-balloon` on a monitor of its own
+  (`<job>.balloon.qmp`, so `vm-run.sh qmp` is never blocked).
+- Deflate at once on pressure (compressing/swapping above
+  `BALLOON_COMPRESS_RATE`, available below half the margin, or available
+  falling by >= 128 MiB a sample, fast enough to cross the margin within two
+  samples): by the
+  shortfall + 2x the last drop + 2x what was compressed, at least
+  `BALLOON_DEFLATE_MIN`; then no inflating for `BALLOON_COOLDOWN`.
+- Inflate gently on surplus (available above margin + hysteresis for 3
+  quiet samples): half the surplus, at most `BALLOON_INFLATE_STEP` every
+  `BALLOON_INFLATE_EVERY` seconds, never below `BALLOON_MIN_GUEST`.
+- Re-sends a target the driver has not reached within 10 s (an inflate it
+  cannot allocate is dropped); releases the balloon if `vm_stat` is silent
+  for `BALLOON_BLIND` seconds.
+
+Tunables (env): `BALLOON_MARGIN` (1536M), `BALLOON_HYSTERESIS` (512M),
+`BALLOON_INTERVAL` (1), `BALLOON_MIN_GUEST` (2560M), `BALLOON_MAX`,
+`BALLOON_INFLATE_STEP` (512M), `BALLOON_INFLATE_EVERY` (5),
+`BALLOON_DEFLATE_MIN` (1G), `BALLOON_COOLDOWN` (60), `BALLOON_COMPRESS_RATE`
+(64 pages/s), `BALLOON_BLIND` (30), `BALLOON_DRY_RUN`, `BALLOON_VERBOSE`;
+`BALLOON_GOVERNOR=0` disables it in `vm-job.sh`.
+
+### Measurements (10 GiB guest, 4 vCPUs, default tunables)
+
+Host footprint = memfd blocks + `Pss_Anon` (GPU on) or QEMU `Rss`
+(`GFX=none`), sampled every 2 s; the host was shared with other VMs, so wall
+times vary by about +-15 % between identical runs.
+
+| run | job phases (s) | total | footprint avg / peak |
+|---|---|---|---|
+| idle 15 min, no balloon | - | - | 8.78 / 10.09 GB |
+| idle 15 min, governor | - | - | 4.84 / 6.67 GB |
+| build+test+burst, no balloon (2 runs) | build 106, 85; test 154, 173 | 310, 321 s | 9.85, 9.72 / 10.5 GB |
+| build+test+burst, governor (2 runs) | build 87, 83; test 108, 170 | 251, 314 s | 8.85, 9.05 / 10.5 GB |
+| same, `GFX=none`, no balloon | build 83; test 93 | 221 s | 9.63 / 10.28 GB |
+| same, `GFX=none`, governor | build 70; test 94 | 212 s | 8.83 / 10.23 GB |
+
+- Idle: the governor settles in about a minute at ~4.3 GiB guest memory
+  (avail ~2 GB). Without it the idle guest grows to 10 GB (a background task
+  at ~5 min touches 3.5 GB that never comes back); with it the same event
+  cost one 1 GiB deflate and was taken back a minute later.
+- Job (xcodegen iOS framework of 150 generated Swift files built for the
+  simulator, 40 hostless unit tests on an iPhone simulator, then 6 GiB of
+  incompressible allocation): no slowdown measurable; the build and the
+  simulator need nearly all 10 GiB, so the governor hands everything back in
+  the first minute of the build and the job ends before the cooldown.
+- Worst case, a 6 GiB incompressible burst into a squeezed guest (balloon
+  5.75 GiB): written in 8.6 s instead of 1.1-2.3 s; the governor reacts on the
+  first sample showing compression and the driver returns the 5.75 GiB in
+  ~6 s (2 GiB rounds). A larger `BALLOON_MARGIN` buys headroom for bursts.
+- Governor CPU: 0.13-0.32 s per job/15 min (0.02-0.06 % of a core) plus
+  0.02-0.07 s for its SSH client; the guest side is one `vm_stat` process.
+- Stats polling interval 1 s vs 5 s: no difference in deflate time (8 GiB:
+  4.3-5.4 s vs 3.1-4.8 s).
+
+Co-tenancy: a governed idle guest leaves ~4-5.5 GB more host memory to its
+neighbours than an unballooned one, and a guest that has finished a burst gives the
+memory back (memfd 10.0 -> 3.9 GB within two minutes, cooldown included)
+instead of holding its high-water mark until QEMU exits. Two governed
+guests side by side were not run here (one test VM at a time on a shared
+host).
 
 ## Disk cache
 

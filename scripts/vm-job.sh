@@ -43,10 +43,14 @@ qemu_alive() {
 }
 
 booted=0
+governor_pid=
 cleanup() {
     # Finish cleaning up even if more INT/TERM arrive (a service stop signals
     # every process, then the orchestrator signals its group again).
     trap '' INT TERM
+    if test -n "$governor_pid"; then
+        kill "$governor_pid" 2>/dev/null; wait "$governor_pid" 2>/dev/null; governor_pid=
+    fi
     # A guest that never reached SSH cannot be shut down over SSH; skip
     # straight to QMP quit instead of waiting out the SSH and power-off timeouts.
     if qemu_alive && test "$booted" = 1; then
@@ -105,6 +109,14 @@ until boot; do
 done
 t1=$(date +%s)
 log "guest ready after $((t1 - t0))s; running job"
+# BALLOON=1: size the guest's balloon to its needs while the job runs
+# (BALLOON_GOVERNOR=0 to drive it by hand; tunables: balloon-governor.py).
+if test "${BALLOON:-0}" = 1 && test "${BALLOON_GOVERNOR:-1}" = 1; then
+    "$repo_root/scripts/balloon-governor.py" \
+        --qmp "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/vmapple/$name.balloon.qmp" \
+        --ssh-port "$SSH_PORT" --key "$key" > "$run/logs/balloon-governor.log" 2>&1 < /dev/null &
+    governor_pid=$!
+fi
 # Background + wait so INT/TERM interrupt a long-running job immediately
 # (bash defers traps until a foreground command returns); <&0 keeps stdin.
 timeout "$job_timeout" ssh "${ssh_opts[@]}" "$@" <&0 &

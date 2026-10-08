@@ -4,17 +4,13 @@
 #
 #   scripts/balloon-squeeze.sh <vm-name> [floor e.g. 4G]
 #
-# Needs the guest started with BALLOON=1 (launch-kvm.sh adds
-# virtio-balloon-pci with config-page-shift=14, which needs the
-# aquarat/qemu-reims-vgpu QEMU). macOS guests only:
-# - their driver reads the target in 16 KiB pages (config-page-shift=14);
-# - it submits each inflate request as ONE transaction, so a large step
-#   never reaches QEMU (it allocates the memory and then silently gives up);
-#   steps stay small (BALLOON_STEP, default 256M) and each is confirmed via
-#   query-balloon before the next.
+# Needs the guest started with BALLOON=1 (virtio-balloon with macos-units,
+# aquarat/qemu-reims-vgpu QEMU) and no governor driving it (vm-job.sh:
+# BALLOON_GOVERNOR=0); see docs/NOTES.md "Memory balloon (macOS guests)".
+# Steps of BALLOON_STEP (default 256M), each confirmed via query-balloon.
 # Pages the balloon took are discarded on the host (RSS drops); after the
 # deflate the guest has its full RAM again, re-backed only when touched.
-# Prints the host RSS before and after.
+# Prints the host RSS before and after (QEMU Rss under-counts memfd RAM).
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

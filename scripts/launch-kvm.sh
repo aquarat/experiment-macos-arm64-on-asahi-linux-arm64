@@ -39,11 +39,18 @@ console="${CONSOLE:-reims}"
 gfx="${GFX:-reims}"
 ssh_bind="${SSH_BIND:-127.0.0.1}"
 read -r -a extra_args <<<"${QEMU_EXTRA_ARGS:-}"
-# BALLOON=1: virtio balloon for scripts/balloon-squeeze.sh. macOS reads its
-# target oddly (macos-units needs the aquarat QEMU fork);
-# QEMU must not hold the stats buffer, or the driver never inflates.
+# BALLOON=1: virtio balloon for scripts/balloon-governor.py (vm-job.sh starts
+# one per guest) or scripts/balloon-squeeze.sh. The macOS driver needs
+# macos-units (aquarat QEMU fork, see docs/NOTES.md "Memory balloon") and
+# stats polling (it wakes on the stats interrupt). The governor gets a QMP
+# monitor of its own (BALLOON_QMP, default <QMP_SOCKET>.balloon.qmp).
 if test "${BALLOON:-0}" = 1; then
     extra_args+=(-device "virtio-balloon-pci,id=balloon0,macos-units=on,guest-stats-polling-interval=5${BALLOON_OPTS:+,$BALLOON_OPTS}")
+    balloon_qmp="${BALLOON_QMP:-${QMP_SOCKET:+${QMP_SOCKET%.qmp}.balloon.qmp}}"
+    if test -n "$balloon_qmp"; then
+        rm -f "$balloon_qmp"
+        extra_args+=(-qmp "unix:$balloon_qmp,server=on,wait=off")
+    fi
 fi
 # Optional second NIC on a pre-created tap (e.g. bridged to the LAN, see
 # scripts/host-net-setup.sh); the user-mode NIC stays the management path.
