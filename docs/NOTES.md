@@ -52,6 +52,11 @@ gnutls-devel nettle-devel gdb socat qemu-img`, plus cargo/rustc.
   QEMU's AES device fails every keystore command (`cmd_data: Failed to create
   cipher object`, visible with `-d guest_errors -trace aes_*`) and the guest
   idles forever. The build scripts pass `--enable-gnutls`.
+- **Used ring fix.** macOS' virtio driver sometimes programs a used ring
+  address inside the available ring; without the fork's
+  `x-fix-overlapping-used` (on for `vmapple`) about one macOS 26 boot in 12
+  never configures its network and one in 20 has no audio device. See
+  "AppleVirtIO split ring layout bug".
 - **Renderer.** Reims on the host GPU (Honeykrisp) aborts: Mesa's AGX compiler
   asserts on a 16-bit varying (`value.size == AGX_SIZE_32`). Use llvmpipe:
   `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.aarch64.json`.
@@ -188,35 +193,114 @@ never answer SSH. Measured per-boot failure rates, GDB-free, retries off:
 | `avp,rtc`, image without RTC offset | 5/60 |
 | `avp,rtc`, image re-baked with RTC offset (v7) | 5/110 (~4.5 %) |
 | v7 on an M1 Ultra host | 0/30 |
+| v11, 8 vCPU / 12 GiB, `GFX=none`, virtio-sound, QEMU e753fed656 | 17/203 (8.4 %) |
+| same, QEMU with the used-ring fix (below) | 0/200 (a used ring relocated in 62 of them) |
 
-Characterisation:
+The remaining stall (after the RTC fix) is the virtio ring layout bug in
+the next section, on the network control queue: the first control command
+never completes, the interface bring-up that issued it blocks (configd
+stops after IPMonitor "network changed") and en0 is never configured. Fixed
+in the QEMU fork; `vm-job.sh` keeps its retry as a safety net.
+
+Earlier characterisation, all consistent with that:
 
 - The guest transmits nothing on the NIC (no DHCP, no ARP reply; slirp keeps
   sending `who-has 10.0.2.15`); `en0` exists but IPConfiguration never runs.
-  The missing network is a consequence of a userspace stall.
+  configd's last persisted line is IPMonitor "network changed"; launchd
+  never starts daemons from `/Library/LaunchDaemons` (a debug daemon there
+  never printed in a stalled boot).
 - Before the RTC fix, failing boots showed launchd timestamps jumping back to
   the image's last shutdown time, then silence. With `avp,rtc` and an image
   carrying an RTC offset, the jump disappears but a second stall remains.
-- In remaining stalls 6–7 of 8 vCPUs sit at the same kernel WFI idle PC, all
-  virtio queues are drained (`inuse 0`, `signalled-used == used-idx`), and
-  the SSH port accepts but sends no banner. The kernel serves devices;
-  userspace waits on something internal. Last kernel lines: the
-  `IASInstallPhaseList` NVRAM writes, `BootPolicy … security mode`, an APFS
-  `tx_flush`.
+- In stalls every vCPU sits at the kernel's idle WFI, the vCPU timers are
+  armed normally (`CNTV_CTL_EL0` = 1, `CVAL` just ahead of the counter), and
+  the virtio-blk and network RX/TX queues are drained. The network control
+  queue is not: QEMU has completed one request (used.idx 1), the guest's
+  `used_event` is still 0, and a second request sits in the available ring
+  (avail.idx 2) without a kick.
 - Not the cause: vCPU count (4 or 8), legacy vs modern virtio-net, the GDB
   injector vs none, the in-KVM store emulation (the flake reproduces on a
   kernel without it), deleting the timed state plist at bake time (timed
   rewrites it at shutdown), `launchctl disable system/com.apple.timed` (does
-  not survive a reboot).
+  not survive a reboot), lost interrupts (forcing every virtio vector again
+  does not recover the guest; the vGIC shows the SPI enabled, not pending,
+  not active), host load.
 
-Mitigation: `vm-job.sh` uses a 90 s boot timeout and `BOOT_RETRIES=2`, each
-retry from a fresh clone; a failed boot is quit over QMP immediately. A job
-then fails only if three boots fail. Good boots reach SSH in 16–24 s.
+Mitigation (still in place): `vm-job.sh` uses a 90 s boot timeout and
+`BOOT_RETRIES=2`, each retry from a fresh clone; a failed boot is quit over
+QMP immediately. Good boots reach SSH in 13–24 s.
 
-Diagnostics: `scripts/debug/bootdiag*-install.sh` bake a LaunchDaemon into a
-debug golden that logs network/configd/clock state to the serial console.
-**Avoid** QMP `x-query-virtio-status` and HMP `info virtio-status` on these
-guests: the first crashed QEMU, the second hung the monitor.
+Diagnostics: `scripts/debug/boot-reliability.sh` boots a golden N times and
+records time to SSH, AppleVirtIOSound registration and, for failures, the
+QEMU log and `scripts/debug/vqstate.py` (QEMU's and the guest's view of
+every virtqueue, plus the MSI-X tables). `scripts/debug/bootdiag*-install.sh`
+bake a LaunchDaemon into a debug golden that logs network/configd/clock state
+to the serial console. **Avoid** QMP `x-query-virtio-status` and HMP
+`info virtio-status` on these guests: the first crashed QEMU, the second hung
+the monitor.
+
+## AppleVirtIO split ring layout bug (macOS 26)
+
+`AppleVirtIOQueue` allocates each split ring as one physically contiguous
+`IOBufferMemoryDescriptor` with **byte** alignment (`withOptions(0x13, size,
+1)`): descriptor table at the buffer start, available ring right after it,
+and it reads the used ring at the legacy offset
+`ALIGN_UP(avail + 6 + 2 * num, 4096)`. The used ring address it programs
+into the device is computed differently: when the available ring straddles
+a 4 KiB boundary, the driver programs that boundary, which lies inside the
+available ring. QEMU then writes used entries (and `avail_event`) over the
+tail of the available ring and the driver never sees a completion on that
+queue. Example (sound control queue, failing boot):
+
+| | desc | avail | used |
+| --- | --- | --- | --- |
+| programmed into the device | 0x7c495bf0 | 0x7c495ff0 | 0x7c496000 |
+| where the driver reads (gva2gpa of its pointers) | 0x7c495bf0 | 0x7c495ff0 | 0x7c497000 |
+
+64-entry rings (descriptors 0x400 + available ring 0x86 bytes) start at a
+4 KiB page offset of 0xbf0 often enough to hit this: one or more of the
+sound queues or the network control queue in roughly a third of boots
+(62 of 200; per queue in 164 logged boots: network control 5, sound
+control 13, sound event 9, TX 11, RX 12). 256-entry rings (block, network
+RX/TX) are page aligned and never affected. What breaks depends on the
+queue:
+
+- network control queue: the boot stall above;
+- sound control queue: `AppleVirtIOSound::start()` sends JACK_INFO and
+  sleeps on its command gate without a timeout for the reply, so the device
+  stays `!registered` and `afplay` fails with -66680 (the "one boot in
+  eight" audio failure);
+- sound TX/RX queues: the same for playback and capture buffers (a boot
+  check does not exercise them; with the fix `afplay` worked in every boot,
+  including those where the TX ring was relocated).
+
+The QEMU fork fixes it in `virtio_queue_set_rings()`: a used ring that
+overlaps the available ring is invalid, so with `x-fix-overlapping-used`
+(a virtio device property, off by default, on for the `vmapple` machine
+through its compat defaults) QEMU moves it to
+`ALIGN_UP(avail + 6 + 2 * num, 4096)`. `-d guest_errors` logs each
+relocation ("virtio-net: queue 2: used ring … overlaps the available ring");
+the trace event is `virtio_queue_fixup_used`. No launcher change is needed.
+
+How it was found (useful for other guest-driver hangs):
+
+- `vqstate.py` showed the stuck queue: QEMU had completed and signalled the
+  request, the guest's `used_event` never moved.
+- A debug QEMU (not committed) logged MSI-X table writes and notifications,
+  dumped the KVM vGIC state (`kvm_arm_gicv3_get`, VM stopped), and could
+  re-raise every queue interrupt from QMP: the MSI was sent and taken, and
+  re-sending it did nothing.
+- The arm64 kernelcache is in the guest's Preboot volume
+  (`…/System/Library/Caches/com.apple.kernelcaches/kernelcache`, IM4P with
+  an LZFSE payload at offset 70; `lzfse -decode`). Its kernel keeps the
+  exported symbol table (IOInterruptEventSource, IOCommandGate, …); kexts are
+  fileset entries. The KASLR slide of a running guest is the idle-loop PC
+  minus its unslid address (a WFI in `__TEXT_EXEC`, low 14 bits preserved).
+- With the slide, QEMU's gdbstub (`GDB_PORT`, hardware breakpoints under
+  KVM) on `IOInterruptEventSource::normalInterruptOccurred` showed the
+  interrupt reaching the queue's event source; dumping the source's owner
+  (the `AppleVirtIOQueue`) gave its ring pointers, and HMP `gva2gpa` on them
+  showed the used ring mismatch.
 
 ## Memory balloon (macOS guests)
 
@@ -419,6 +503,15 @@ Sound Device" (2 ch, 48 kHz, Built-in) as default output. With the default
 `streams=2` it is also the default input, and CoreAudio starts the capture
 stream together with every playback, so the launcher passes `streams=1`
 (output only). A QEMU without the fix gives the same result as no device.
+
+Even with that fix the device stayed `!registered` in some boots (8 of 186
+that reached SSH in the measurement under "Tahoe early-boot stall", up to
+one in eight in earlier runs; the next boot of the same disk was fine): the
+sound control queue hit the ring layout bug described in "AppleVirtIO split
+ring layout bug", so the JACK_INFO reply landed where the driver does not
+look and `start()` waited for it forever. QEMU's `x-fix-overlapping-used`
+(on for `vmapple`) fixes it: no boot without the device in 200, and `afplay`
+of a system sound succeeded in all 200.
 
 ### usb-audio
 

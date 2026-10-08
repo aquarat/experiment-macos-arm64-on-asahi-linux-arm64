@@ -339,7 +339,8 @@ scripts/bake-golden.sh $G/tahoe-26.4-25E246-v6 $G/tahoe-26.4-25E246-v7 \
 Just a boot, 25 s wait and clean shutdown. Images baked under a PL031-only
 QEMU carry no `com.apple.System.rtc-offset` in NVRAM; timed then logs "RTC
 reset likely", sometimes adopts the image's last shutdown time, and those
-boots stall (9–15 % before, ~4.5 % after). The reference v1–v6 were baked
+boots stall (9–15 % before, ~4.5 % after; the rest was a virtio ring bug,
+fixed in QEMU, see NOTES.md). The reference v1–v6 were baked
 before QEMU had `avp,rtc`; on a from-scratch chain with `build-qemu.sh`'s
 QEMU every bake already writes the offset and this layer only checks it.
 Check: `sysctl kern.monotoniclock_offset_usecs` exists (small negative value),
@@ -526,9 +527,11 @@ group, which is root-equivalent on the host.
 - **Bake on wired Ethernet.** slirp passes the host's link speed through
   (~25 MB/s for the iOS runtime on GbE) but delivered ~330 KiB/s on a host on
   Wi-Fi, which turns the 8.5 GB simulator runtime into hours.
-- **Early-boot stall.** ~4–5 % of macOS 26 boots never reach SSH (idle guest,
-  see NOTES.md). `bake-golden.sh` retries from a fresh clone (120 s timeout,
-  3 attempts); `bake-xcode.sh` and `create-account.sh` do not.
+- **Early-boot stall.** With a QEMU older than the fork's used-ring fix
+  (`x-fix-overlapping-used`, see NOTES.md) 4–8 % of macOS 26 boots never
+  reach SSH; with it, none in the measurement. `bake-golden.sh` still
+  retries from a fresh clone (120 s timeout, 3 attempts); `bake-xcode.sh`
+  and `create-account.sh` do not.
 - **CoreSimulatorService** takes ~30 s to start on first use; until then
   `-downloadPlatform` fails with "Unable to connect to simulator".
 - **Clean shutdown only.** Bundles are promoted only after the guest powers
