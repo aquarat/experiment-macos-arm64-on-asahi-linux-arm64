@@ -9,6 +9,10 @@
 #    pages through it), and shmem THP defaults to "never" on Fedora, so guest
 #    RAM would be backed by base pages only. "advise" lets QEMU's
 #    MADV_HUGEPAGE on guest RAM take effect (PMD size and 2 MiB mTHP).
+#    khugepaged/max_ptes_none 0: khugepaged must not collapse a range the
+#    memory balloon has punched holes in (it would fill them with zeroes and
+#    take the memory back); the default lets it collapse a 32 MiB range with
+#    a single 16 KiB page present. Also used without the GPU (BALLOON=1).
 # 2. Builds the patched Mesa Asahi Vulkan driver into ~/opt/mesa-honeykrisp
 #    (scripts/build-mesa-honeykrisp.sh) and prints the VK_DRIVER_FILES line
 #    for hosts/<host>.env. Rerun after Fedora updates Mesa.
@@ -25,9 +29,10 @@ conf=/etc/tmpfiles.d/vmapple-shmem-thp.conf
     echo "w $thp/shmem_enabled - - - - advise"
     test -e "$thp/hugepages-2048kB/shmem_enabled" &&
         echo "w $thp/hugepages-2048kB/shmem_enabled - - - - advise"
+    echo "w $thp/khugepaged/max_ptes_none - - - - 0"
 } | sudo tee "$conf" >/dev/null
 sudo systemd-tmpfiles --create "$conf"
-echo "shmem THP: $(cat "$thp/shmem_enabled")"
+echo "shmem THP: $(cat "$thp/shmem_enabled"), khugepaged max_ptes_none: $(cat "$thp/khugepaged/max_ptes_none")"
 
 for n in /dev/dri/renderD*; do
     test -r "$n" && test -w "$n" || die "no access to $n (add $(id -un) to group $(stat -c %G "$n"))"
