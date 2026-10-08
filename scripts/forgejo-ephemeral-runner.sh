@@ -62,6 +62,18 @@ guest_cfg="read -r cs; umask 077; { printf 'log:\\n  level: info\\n'; if test -n
 # device matching the provided destination specifier" while it is still
 # loading (no-op on images without Xcode).
 guest_warm="if command -v xcrun >/dev/null && xcrun -f simctl >/dev/null 2>&1; then for i in \$(seq 60); do xcrun simctl list devices available 2>/dev/null | grep -qE '[(](Shutdown|Booted)[)]' && break; sleep 2; done; fi"
+# A network outage can leave a negative answer for the forge in mDNSResponder's
+# cache for up to an hour (the zone's SOA minimum), and the runner then polls a
+# name it believes does not exist long after DNS is back. Every 30 s: if the
+# system resolver has no address for the forge but a direct query to the
+# configured nameserver has one, flush the cache. Output goes to a guest file:
+# a background job holding the SSH session's stdout/stderr would keep the
+# session open after the runner exits. No-op when the URL host is an address.
+forge_host="${runner_url#*://}"; forge_host="${forge_host%%[/:]*}"
+guest_dnswatch=":"
+if ! [[ "$forge_host" =~ ^[0-9.]+$ ]] && test -n "$forge_host"; then
+    guest_dnswatch="( h=$(printf %q "$forge_host"); while sleep 30; do dscacheutil -q host -a name \"\$h\" | grep -q ip_address && continue; host -W 3 \"\$h\" >/dev/null 2>&1 || continue; sudo -n dscacheutil -flushcache; sudo -n killall -HUP mDNSResponder; echo \"\$(date '+%F %T') flushed DNS cache: \$h was negatively cached\"; done ) </dev/null >>/tmp/dns-watchdog.log 2>&1 &"
+fi
 export GOLDEN="${GOLDEN:-$HOME/vm-artifacts/tahoe-26.4-25E246-v7}" CPUS="${CPUS:-8}" RAM="${RAM:-16G}"
 
 label_args=""
@@ -85,7 +97,7 @@ slot() {
         if test -n "${FORGEJO_REGISTRATION_TOKEN:-}"; then
             echo "[slot $n] $name registering in a fresh guest" >&2
             printf '%s\n' "$FORGEJO_REGISTRATION_TOKEN" "$cache_secret" | "$repo_root/scripts/vm-job.sh" \
-                "read -r t; $guest_cfg; $guest_warm; cd ~ && ~/forgejo-runner/forgejo-runner register --no-interactive --ephemeral --instance $(printf %q "$runner_url") --token \"\$t\" --name $name --labels $(printf %q "$labels") >&2 || exit 77; unset t; exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml"
+                "read -r t; $guest_cfg; $guest_warm; $guest_dnswatch; cd ~ && ~/forgejo-runner/forgejo-runner register --no-interactive --ephemeral --instance $(printf %q "$runner_url") --token \"\$t\" --name $name --labels $(printf %q "$labels") >&2 || exit 77; unset t; exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml"
             st=$?
             echo "[slot $n] $name finished with status $st" >&2
             if test "$st" = 77; then
@@ -102,7 +114,7 @@ slot() {
         read -r id uuid token < <(python3 -c 'import json,sys; r=json.load(sys.stdin); print(r["id"], r["uuid"], r["token"])' <<<"$reply")
         echo "[slot $n] $name (id $id) waiting for a job" >&2
         printf '%s\n' "$token" "$cache_secret" | "$repo_root/scripts/vm-job.sh" \
-            "read -r t; $guest_cfg; $guest_warm; umask 077; printf %s \"\$t\" > ~/.forgejo-runner-token; cd ~ && exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml --url $(printf %q "$runner_url") --uuid $uuid --token-url file://\$HOME/.forgejo-runner-token$label_args"
+            "read -r t; $guest_cfg; $guest_warm; $guest_dnswatch; umask 077; printf %s \"\$t\" > ~/.forgejo-runner-token; cd ~ && exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml --url $(printf %q "$runner_url") --uuid $uuid --token-url file://\$HOME/.forgejo-runner-token$label_args"
         echo "[slot $n] $name finished with status $?" >&2
         # Ephemeral runners are removed by Forgejo after their job; remove a
         # registration left behind by a timeout or a guest that never booted.
