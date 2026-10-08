@@ -39,6 +39,12 @@ console="${CONSOLE:-reims}"
 gfx="${GFX:-reims}"
 ssh_bind="${SSH_BIND:-127.0.0.1}"
 read -r -a extra_args <<<"${QEMU_EXTRA_ARGS:-}"
+# BALLOON=1: virtio balloon for scripts/balloon-squeeze.sh. macOS reads its
+# target oddly (macos-units needs the aquarat QEMU fork);
+# QEMU must not hold the stats buffer, or the driver never inflates.
+if test "${BALLOON:-0}" = 1; then
+    extra_args+=(-device "virtio-balloon-pci,id=balloon0,macos-units=on,guest-stats-polling-interval=5${BALLOON_OPTS:+,$BALLOON_OPTS}")
+fi
 # Optional second NIC on a pre-created tap (e.g. bridged to the LAN, see
 # scripts/host-net-setup.sh); the user-mode NIC stays the management path.
 tap_if="${TAP_IF:-}"
@@ -89,6 +95,14 @@ if test "$gfx" = none; then
 fi
 if test "$gfx" = reims && grep -q '^reims-vgpu-mmio options:' <<<"$device_help"; then
     machine+=",gfx-device=reims-vgpu-mmio"
+    # Reims maps fragmented guest pages (textures, render targets) through a
+    # packed view of the RAM's backing file, so guest RAM must be a shared
+    # memfd on Linux hosts (MEMFD=0 falls back to anonymous RAM; draws using
+    # scattered pages then fail).
+    if test "${MEMFD:-1}" = 1; then
+        extra_args+=(-object "memory-backend-memfd,id=guest-ram,size=$ram,share=on")
+        machine+=",memory-backend=guest-ram"
+    fi
     if test "${REIMS_VGPU_WINDOW:-1}" = 0; then
         # The MMIO device always tries to open its host window and only
         # falls back to the QEMU console (screendump/VNC) when that fails.
