@@ -80,8 +80,9 @@ trap 'test -n "${job_pid:-}" && kill "$job_pid" 2>/dev/null; exit 130' INT TERM
 
 boot() {
     local t0
-    t0=$(date +%s)
+    # start may wait for a macOS instance slot (licence limit, see vm-run.sh).
     "$repo_root/scripts/vm-run.sh" start "$name" >/dev/null || return 1
+    t0=$(date +%s)
     log "booting (cpus=$CPUS ram=$RAM ssh=127.0.0.1:$SSH_PORT)"
     until timeout 10 ssh -n "${ssh_opts[@]}" true 2>/dev/null; do
         qemu_alive || { log "QEMU exited during boot"; return 1; }

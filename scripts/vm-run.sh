@@ -31,8 +31,40 @@ qmp_call() {
         socat -t"${QMP_WAIT:-3}" - "UNIX-CONNECT:$qmp" | tail -n +3
 }
 
+# Apple's macOS licence allows two virtualised macOS instances per Mac. The
+# aquarat QEMU fork enforces it (vmapple machine property max-instances,
+# default 2: each guest holds an abstract socket @vmapple-macos-instance-N
+# and a third QEMU refuses to start); start waits here for a free slot
+# instead. QEMUs without the check are counted by process. Stop the runner
+# service before baking on a runner host, or the bake waits for a slot.
+# MACOS_MAX_INSTANCES (2; 0 = no wait), MACOS_SLOT_WAIT (seconds, 86400).
+wait_for_instance_slot() {
+    local max="${MACOS_MAX_INSTANCES:-2}" limit="${MACOS_SLOT_WAIT:-86400}"
+    local waited=0 n p q
+    test "$max" -gt 0 || return 0
+    while :; do
+        n=$(grep -c '@vmapple-macos-instance-' /proc/net/unix 2>/dev/null || true)
+        p=0
+        for q in $(pgrep -x qemu-system-aar); do
+            if tr '\0' ' ' < "/proc/$q/cmdline" 2>/dev/null | grep -q -- '-machine vmapple'; then
+                p=$((p + 1))
+            fi
+        done
+        n=${n:-0}
+        if (( p > n )); then n=$p; fi
+        if (( n < max )); then return 0; fi
+        if (( waited == 0 )); then
+            echo "waiting for a macOS instance slot ($n of $max in use)" >&2
+        fi
+        if (( waited >= limit )); then die "no macOS instance slot free after ${limit}s"; fi
+        sleep 10
+        waited=$((waited + 10))
+    done
+}
+
 case "$1" in
 start)
+    wait_for_instance_slot
     if test "${RESUME:-0}" = 1; then
         # Boot an existing run's disk again (e.g. after a single-user bake).
         test -f "$run/disk.img" || die "$run has no disk to resume"
