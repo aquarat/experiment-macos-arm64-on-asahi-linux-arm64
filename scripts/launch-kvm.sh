@@ -96,20 +96,29 @@ elif test "$pause_at_start" != off; then
     die "PAUSE_AT_START must be on or off"
 fi
 device_help="$({ "$qemu" -device reims-vgpu-mmio,help 2>&1 || true; })"
+# Guest RAM on a shared memfd (MEMFD=1; the default with the GPU or the
+# balloon, MEMFD=0 for anonymous RAM):
+# - Reims maps fragmented guest pages (textures, render targets) through a
+#   packed view of the RAM's backing file; with anonymous RAM, draws using
+#   scattered pages fail.
+# - The balloon frees 16 KiB pages inside 32 MiB transparent huge pages.
+#   Punching a hole in a memfd splits the huge page and frees the memory at
+#   once; MADV_DONTNEED on anonymous RAM only queues the huge page for a
+#   deferred split, which the kernel runs under memory pressure, so the host
+#   gets nothing back (and khugepaged may refill the hole).
+# Needs shmem THP set to advise (scripts/host-gpu-setup.sh) for huge pages.
+memfd_default=0
+if test "$gfx" = reims || test "${BALLOON:-0}" = 1; then memfd_default=1; fi
+if test "${MEMFD:-$memfd_default}" = 1; then
+    extra_args+=(-object "memory-backend-memfd,id=guest-ram,size=$ram,share=on")
+    machine+=",memory-backend=guest-ram"
+fi
 if test "$gfx" = none; then
     # No paravirtual GPU (needs a QEMU with gfx-device=none): headless only.
     machine+=",gfx-device=none"
 fi
 if test "$gfx" = reims && grep -q '^reims-vgpu-mmio options:' <<<"$device_help"; then
     machine+=",gfx-device=reims-vgpu-mmio"
-    # Reims maps fragmented guest pages (textures, render targets) through a
-    # packed view of the RAM's backing file, so guest RAM must be a shared
-    # memfd on Linux hosts (MEMFD=0 falls back to anonymous RAM; draws using
-    # scattered pages then fail).
-    if test "${MEMFD:-1}" = 1; then
-        extra_args+=(-object "memory-backend-memfd,id=guest-ram,size=$ram,share=on")
-        machine+=",memory-backend=guest-ram"
-    fi
     if test "${REIMS_VGPU_WINDOW:-1}" = 0; then
         # The MMIO device always tries to open its host window and only
         # falls back to the QEMU console (screendump/VNC) when that fails.
