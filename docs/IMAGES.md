@@ -23,6 +23,7 @@ Golden images contain an installed copy of macOS, the VM identity
 | 50 | `scripts/bake-xcode.sh` with a user-supplied `.xip` | `-v9` | Xcode 26.4.1 (17E202) |
 | 55 | `images/55-ios-simulator.sh` | `-v10` | iOS 26.4.1 simulator runtime (23E254a) |
 | 60 | `images/60-ci-tools.sh` | `-v11` | CI toolchain (below) |
+| 65 | `images/65-gpu-headless.sh` (bake **with the GPU on**) | `-v12` | display sleep 1 min, baked-in crash reports removed, Metal present |
 
 Gaps in the numbering are discarded experiments: v3 (timed state reset) and
 v5 (`launchctl disable` timed) did not help the boot stall; v8 (software
@@ -258,7 +259,7 @@ scripts/bake-golden.sh $G/tahoe-26.4-25E246-v0 $G/tahoe-26.4-25E246-v1 \
     "headless settings, CLT for Xcode 26.6, TZ $GUEST_TZ" "bash -s" < images/10-headless-clt.sh
 ```
 
-`pmset -a sleep 0 displaysleep 0 disksleep 0 standby 0 powernap 0`,
+`pmset -a sleep 0 displaysleep 1 disksleep 0 standby 0 powernap 0` (display sleep after 1 minute: awake, WindowServer composites the invisible display forever),
 `mdutil -a -i off`, screen saver idle 0, the software-update preference keys,
 `systemsetup -setusingnetworktime on`, `sntp -sS time.apple.com`,
 `systemsetup -settimezone` (`GUEST_TZ`), and the CLT through
@@ -410,6 +411,21 @@ with `GOLDEN` set to the new bundle; the bake log must end with
 Project-specific toolchains (a GraalVM pinned by a project, Gradle and
 Kotlin/Native downloads) are not baked in: `actions/cache` against the
 runner cache below keeps them across jobs after the first run.
+
+### 65: GPU headless → v12
+
+```sh
+scripts/bake-golden.sh ~/vm-artifacts/tahoe-26.4-25E246-v11 ~/vm-artifacts/tahoe-26.4-25E246-v12 \
+    "GPU headless (images/65-gpu-headless.sh)" "bash -s" < images/65-gpu-headless.sh
+```
+
+Bake with the paravirtual GPU on (default `GFX`, a working `VK_DRIVER_FILES`):
+the layer fails without a Metal device. It sets display sleep to 1 minute
+(images built before layer 10 changed had it off, and WindowServer then
+composites the invisible display forever) and deletes crash/spin reports
+left by earlier bakes. Never bake or run Tahoe guests with `GFX=none` for
+long: without Metal, WindowServer aborts every minute and the crash-report
+symbolication fills the guest's memory with file cache.
 
 ## Runner cache
 

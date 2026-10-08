@@ -20,8 +20,10 @@ main() {
     # Reference: "26.6" on macOS 26.4, "14.3" on Ventura 13.6. "any" = newest offered.
     CLT_VERSION="${CLT_VERSION:-26.6}"
 
-    # Never sleep, no screen saver, no Spotlight indexing (mds stays resident).
-    sudo -n pmset -a sleep 0 displaysleep 0 disksleep 0 standby 0 powernap 0
+    # Never sleep (system/disk), no screen saver, no Spotlight indexing (mds
+    # stays resident). The display does sleep after 1 minute: awake, WindowServer
+    # composites the invisible headless display forever (about one guest core).
+    sudo -n pmset -a sleep 0 displaysleep 1 disksleep 0 standby 0 powernap 0
     sudo -n mdutil -a -i off || true
     defaults -currentHost write com.apple.screensaver idleTime 0
 
