@@ -372,6 +372,129 @@ instead of holding its high-water mark until QEMU exits. Two governed
 guests side by side were not run here (one test VM at a time on a shared
 host).
 
+## Audio (macOS guests)
+
+Without a sound device a Tahoe guest has no CoreAudio device at all
+(`system_profiler SPAudioDataType` lists none), and playback fails rather
+than hangs:
+
+- macOS: `afplay` exits after 0.3 s with `AudioQueueStart failed (-66680)`
+  ("Could not find default device"); `AVAudioEngine.start()` throws -10875
+  (`IsFormatSampleRateAndChannelCountValid(outputHWFormat)`).
+- iOS 26.4.1 simulator (hostless XCTest): `AVAudioSession` activates and
+  reports a "Speaker" route at 48 kHz, but `AVAudioEngine`'s output format is
+  0 ch / 0 Hz and `start()` throws -10851 at `kAUInitialize`;
+  `AVAudioPlayer.play()` returns false, `currentTime` stays 0 and
+  `audioPlayerDidFinishPlaying` never arrives (code that waits for it hangs
+  until its own timeout); `AudioServicesPlaySystemSound` returns at once but
+  its completion never fires ("Can't make UISound Renderer"). No CPU spin.
+
+So a media app's playback tests need a device. Nobody listens, so QEMU's
+`none` audiodev (discards output, paces it in real time) is enough;
+`AUDIO=virtio|usb|none` in `launch-kvm.sh` adds one (default `virtio`).
+
+### virtio-sound and AppleVirtIOSound
+
+Tahoe (arm64) does ship a virtio sound driver: `AppleVirtIOSound` in
+`AppleVirtIO.kext` (`IOVirtIOPrimaryMatch 0x00191af4`) plus the CoreAudio
+plug-in `/System/Library/Audio/Plug-Ins/HAL/AppleVirtIOSound.driver`, which
+loads on a registered `AppleVirtIOSound` and talks to it through
+`AppleVirtIOSoundUserClient`. With stock QEMU `virtio-sound-pci` the driver
+matches but stays `!registered`. From `AppleVirtIOSound::start`:
+
+- The Apple vendor-data capability is optional.
+  `readAndValidateAppleVendorSoundConfiguration` reads 5 bytes from the first
+  Apple vendor capability; when bit 0 of byte 0 is set, byte 4 is published
+  as `AVIOSoundDeviceRole`. Without the capability that property is just
+  missing.
+- It requires `streams > 0`, allocates jacks/streams/chmaps arrays, then
+  always sends JACK_INFO, PCM_INFO and CHMAP_INFO (start 0, count = the
+  config value, so 0 jacks and 0 chmaps by default) and gives up on any
+  status but OK. QEMU answered JACK_INFO and CHMAP_INFO with NOT_SUPP even
+  for zero items.
+
+The fork answers an empty query with OK (commit "virtio-snd: answer empty
+JACK_INFO and CHMAP_INFO queries"). With that the guest shows "Apple Virtual
+Sound Device" (2 ch, 48 kHz, Built-in) as default output. With the default
+`streams=2` it is also the default input, and CoreAudio starts the capture
+stream together with every playback, so the launcher passes `streams=1`
+(output only). A QEMU without the fix gives the same result as no device.
+
+### usb-audio
+
+`usb-audio` on the machine's own xHCI works with any QEMU: AppleUSBAudio and
+`usbaudiod` bind and CoreAudio gets an output-only "Audio Output - Disabled"
+(QEMU's alternate-setting string) at 48 kHz. Isochronous USB is expensive to
+emulate, though (below).
+
+### Behaviour with a device (simulator XCTest)
+
+| | usb | virtio (`streams=1`) |
+|---|---|---|
+| `AVAudioEngine.start()` | 0.12 s | 0.01 s |
+| 1 s tone, schedule to `.dataPlayedBack` | 1.28 s | 1.12 s |
+| `AVAudioPlayer`, 1 s WAV, to `didFinishPlaying` | 1.07 s | 1.21 s |
+| 20 s looped tone: rendered vs wall | 20.02 / 20.03 s | 20.01 / 20.04 s |
+
+`AudioServicesPlaySystemSoundWithCompletion` returns in < 2 ms with either
+device, but its completion arrived late (19-92 s) in these 6 GiB guests,
+where the booted simulator was swapping. That was not investigated further.
+
+Once a simulator has played anything, the guest keeps the output stream
+running until the simulator shuts down: QEMU traces show one PCM_START at
+the first test playback and the matching STOP at `simctl shutdown`, 7
+minutes later (usb: the same, with short alternate-setting gaps). For CI
+that means the playback cost below applies for the rest of the job, not
+just while a test plays.
+
+### Host cost
+
+QEMU process CPU on the host, from `/proc/<pid>/task/*/stat`, as % of one
+host core (6 GiB, 4 vCPUs, `GFX=none`, no simulator). "Playing" is a 30 s
+`AVAudioEngine` tone from a macOS CLI with `audiomxd` stopped (see below).
+
+| | idle | playing | main thread playing | main-thread wakeups/s playing |
+|---|---|---|---|---|
+| no device | 9-12 % | - | - | - |
+| usb | 10-11 % | 36 % | 4.7 % | ~1250 |
+| virtio, 2 streams | 9-14 % | 11.3 % | 1.4 % | ~245 |
+| virtio, `streams=1` | 9 % | 9.8 % | 1.1 % | ~255 |
+
+Idle cost does not change with a device. In the guest during playback, usb
+costs kernel_task 13 % + `usbaudiod` 6 % + coreaudiod 2 % of a vCPU; virtio
+costs coreaudiod 2-3 % and nothing visible in the kernel.
+
+The `none` audiodev's timer (`timer-period`, default 10 ms) only runs while a
+stream is active. `-trace audio_timer_*` shows `audio_timer_start` at
+PCM_START (or when the USB alternate setting is selected) and
+`audio_timer_stop` at the end, with no timer while idle, so no setting is
+needed.
+
+Recommendation: `AUDIO=virtio` (the launcher default, `streams=1`) on a QEMU
+with the fork fix. It is the cheapest device that macOS accepts: +0.4-2 % of
+a host core while streaming against +25 % for usb, with no idle cost. Use
+`AUDIO=usb` only with a QEMU that cannot be updated, and `AUDIO=none` for
+guests that never play audio.
+
+### The audiomxd loop (no console user)
+
+As soon as a macOS process starts playing (`afplay`, or `AVAudioEngine` from a
+CLI), `audiomxd` (MediaExperience) tries to tell Bluetooth audio routing about
+the session. Without a console user that fails ("UpdateAudioState failed to
+start XPC: kUnexpectedErr (No user logged in)"); it reports "audioaccessoryd
+died", re-syncs and fails again, in a tight loop. That is up to ~250,000 log
+lines a minute, with `audiomxd` at ~85 %, `configd` at ~43 % (console-user lookups)
+and `logd` at ~5-9 % of a vCPU. It continues after playback ends, until
+`audiomxd` is killed; the respawned daemon stays quiet until the next
+playback. Host QEMU CPU goes to 200-340 %. With no device it never happens,
+because playback fails before a session starts.
+
+Playback inside the iOS simulator does not trigger it: after the full XCTest
+run (including 20 s of continuous playback) there was one such log line and
+`audiomxd` was idle. For simulator-only CI a device is therefore safe. Jobs
+that play audio on the macOS side should `sudo killall audiomxd` afterwards,
+or the image needs a console session (auto-login, not tried here).
+
 ## Disk cache
 
 Guest disks are throwaway clones or promoted only after a clean shutdown, so

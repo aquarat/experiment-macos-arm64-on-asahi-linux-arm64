@@ -137,6 +137,28 @@ if test "$gfx" = reims && grep -q '^reims-vgpu-mmio options:' <<<"$device_help";
     esac
 fi
 
+# AUDIO=virtio|usb|none: a sound card with a discarding backend (audiodev
+# none), so CoreAudio has a default output and playback in the guest and its
+# iOS simulators works; nothing is heard. See docs/NOTES.md "Audio (macOS
+# guests)". virtio (default): virtio-sound-pci, output stream only
+# (AUDIO_OPTS replaces streams=1); AppleVirtIOSound starts only with a QEMU
+# that answers empty JACK_INFO/CHMAP_INFO queries (aquarat fork), otherwise
+# the guest has no audio device, as with none. usb: usb-audio on the
+# machine's xHCI, works with any QEMU but costs ~10x more host CPU while
+# playing.
+case "${AUDIO:-virtio}" in
+    none) ;;
+    virtio)
+        extra_args+=(-audiodev "none,id=snd0"
+                     -device "virtio-sound-pci,audiodev=snd0,${AUDIO_OPTS:-streams=1}")
+        ;;
+    usb)
+        extra_args+=(-audiodev "none,id=snd0"
+                     -device "usb-audio,audiodev=snd0${AUDIO_OPTS:+,$AUDIO_OPTS}")
+        ;;
+    *) die "AUDIO must be virtio, usb, or none" ;;
+esac
+
 echo "launching VMApple with KVM (guest ECID loaded from vm.json)"
 echo "QEMU: $qemu"
 echo "serial: $serial_log"
