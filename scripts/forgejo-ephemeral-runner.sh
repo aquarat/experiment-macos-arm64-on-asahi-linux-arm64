@@ -57,6 +57,11 @@ fi
 # write the runner config (with a cache section pointing the job's cache
 # proxy at the shared server). Always passed with -c: zsh would not split a $cfg.
 guest_cfg="read -r cs; umask 077; { printf 'log:\\n  level: info\\n'; if test -n \"\$cs\"; then printf 'cache:\\n  enabled: true\\n  external_server: %s\\n  secret: %s\\n' $(printf %q "$cache_server") \"\$cs\"; fi; } > ~/.runner-config.yml; unset cs"
+# Start CoreSimulatorService and let it load its device sets before taking a
+# job: the first xcodebuild after boot otherwise fails with "Unable to find a
+# device matching the provided destination specifier" while it is still
+# loading (no-op on images without Xcode).
+guest_warm="if command -v xcrun >/dev/null && xcrun -f simctl >/dev/null 2>&1; then for i in \$(seq 60); do xcrun simctl list devices available 2>/dev/null | grep -qE '[(](Shutdown|Booted)[)]' && break; sleep 2; done; fi"
 export GOLDEN="${GOLDEN:-$HOME/vm-artifacts/tahoe-26.4-25E246-v7}" CPUS="${CPUS:-8}" RAM="${RAM:-16G}"
 
 label_args=""
@@ -80,7 +85,7 @@ slot() {
         if test -n "${FORGEJO_REGISTRATION_TOKEN:-}"; then
             echo "[slot $n] $name registering in a fresh guest" >&2
             printf '%s\n' "$FORGEJO_REGISTRATION_TOKEN" "$cache_secret" | "$repo_root/scripts/vm-job.sh" \
-                "read -r t; $guest_cfg; cd ~ && ~/forgejo-runner/forgejo-runner register --no-interactive --ephemeral --instance $(printf %q "$runner_url") --token \"\$t\" --name $name --labels $(printf %q "$labels") >&2 || exit 77; unset t; exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml"
+                "read -r t; $guest_cfg; $guest_warm; cd ~ && ~/forgejo-runner/forgejo-runner register --no-interactive --ephemeral --instance $(printf %q "$runner_url") --token \"\$t\" --name $name --labels $(printf %q "$labels") >&2 || exit 77; unset t; exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml"
             st=$?
             echo "[slot $n] $name finished with status $st" >&2
             if test "$st" = 77; then
@@ -97,7 +102,7 @@ slot() {
         read -r id uuid token < <(python3 -c 'import json,sys; r=json.load(sys.stdin); print(r["id"], r["uuid"], r["token"])' <<<"$reply")
         echo "[slot $n] $name (id $id) waiting for a job" >&2
         printf '%s\n' "$token" "$cache_secret" | "$repo_root/scripts/vm-job.sh" \
-            "read -r t; $guest_cfg; umask 077; printf %s \"\$t\" > ~/.forgejo-runner-token; cd ~ && exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml --url $(printf %q "$runner_url") --uuid $uuid --token-url file://\$HOME/.forgejo-runner-token$label_args"
+            "read -r t; $guest_cfg; $guest_warm; umask 077; printf %s \"\$t\" > ~/.forgejo-runner-token; cd ~ && exec ~/forgejo-runner/forgejo-runner one-job --wait -c \$HOME/.runner-config.yml --url $(printf %q "$runner_url") --uuid $uuid --token-url file://\$HOME/.forgejo-runner-token$label_args"
         echo "[slot $n] $name finished with status $?" >&2
         # Ephemeral runners are removed by Forgejo after their job; remove a
         # registration left behind by a timeout or a guest that never booted.

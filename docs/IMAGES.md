@@ -23,7 +23,8 @@ Golden images contain an installed copy of macOS, the VM identity
 | 50 | `scripts/bake-xcode.sh` with a user-supplied `.xip` | `-v9` | Xcode 26.4.1 (17E202) |
 | 55 | `images/55-ios-simulator.sh` | `-v10` | iOS 26.4.1 simulator runtime (23E254a) |
 | 60 | `images/60-ci-tools.sh` | `-v11` | CI toolchain (below) |
-| 65 | `images/65-gpu-headless.sh` (bake **with the GPU on**) | `-v12` | display sleep 1 min, baked-in crash reports removed, Metal present |
+| 62 | `images/62-simulator-warm.sh` | `-v12` | simulator dyld shared cache built, newest iPhone / iPhone Pro devices booted once |
+| 65 | `images/65-gpu-headless.sh` (bake **with the GPU on**) | `-v13` | display sleep 1 min, baked-in crash reports removed, Metal present |
 
 Gaps in the numbering are discarded experiments: v3 (timed state reset) and
 v5 (`launchctl disable` timed) did not help the boot stall; v8 (software
@@ -412,10 +413,27 @@ Project-specific toolchains (a GraalVM pinned by a project, Gradle and
 Kotlin/Native downloads) are not baked in: `actions/cache` against the
 runner cache below keeps them across jobs after the first run.
 
-### 65: GPU headless → v12
+### 62: simulator warm-up → v12
 
 ```sh
-scripts/bake-golden.sh ~/vm-artifacts/tahoe-26.4-25E246-v11 ~/vm-artifacts/tahoe-26.4-25E246-v12 \
+GFX=none scripts/bake-golden.sh ~/vm-artifacts/tahoe-26.4-25E246-v11 ~/vm-artifacts/tahoe-26.4-25E246-v12 \
+    "v11 + simulator warm (images/62-simulator-warm.sh)" "bash -s" < images/62-simulator-warm.sh
+```
+
+CoreSimulator builds the simulator runtime's dyld shared cache on first use
+(about 130 s in an 8 GiB, 4-CPU guest), and a device's first boot takes
+about 105 s longer than later boots (about 20 s). In a throwaway guest
+every job paid both. This layer runs
+`xcrun simctl runtime dyld_shared_cache update --all` and boots, settles and
+shuts down the newest `iPhone <N>` and `iPhone <N> Pro` devices
+(`SIM_WARM_DEVICES=name,name` to choose). Jobs should boot one of those
+devices by name rather than `simctl create` a new one; a new device pays the
+first-boot cost again. Each warmed device adds about 650 MB.
+
+### 65: GPU headless → v13
+
+```sh
+scripts/bake-golden.sh ~/vm-artifacts/tahoe-26.4-25E246-v12 ~/vm-artifacts/tahoe-26.4-25E246-v13 \
     "GPU headless (images/65-gpu-headless.sh)" "bash -s" < images/65-gpu-headless.sh
 ```
 
