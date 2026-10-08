@@ -47,7 +47,7 @@ start)
             chmod u+w "$run/$f"
         done
     fi
-    env | grep -E '^(CPUS|RAM|NET_DEVICE_OPTS|TAP_IF|TAP_MAC|INJECT|KVM_MMIO_PATCH|VMAPPLE_HANDOFF_PC|GFX|CONSOLE|XNU_BOOT_ARGS|CSR_CONFIG|QEMU_EXTRA_ARGS|REIMS_[A-Z_]+|VK_[A-Z_]+|MESA_[A-Z_]+|SSH_PORT|SSH_BIND)=' \
+    env | grep -E '^(CPUS|RAM|NET_DEVICE_OPTS|TAP_IF|TAP_MAC|INJECT|KVM_MMIO_PATCH|VMAPPLE_HANDOFF_PC|GFX|CONSOLE|XNU_BOOT_ARGS|CSR_CONFIG|QEMU_EXTRA_ARGS|REIMS_[A-Z_]+|VK_[A-Z_]+|MESA_[A-Z_]+|SSH_PORT|SSH_BIND|MEMFD|BALLOON[A-Z_]*|AUDIO[A-Z_]*)=' \
         > "$run/env.txt" || true
     echo "golden=$golden booter=$booter" >> "$run/env.txt"
     (
