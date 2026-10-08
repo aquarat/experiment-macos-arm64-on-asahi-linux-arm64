@@ -486,14 +486,103 @@ died", re-syncs and fails again, in a tight loop. That is up to ~250,000 log
 lines a minute, with `audiomxd` at ~85 %, `configd` at ~43 % (console-user lookups)
 and `logd` at ~5-9 % of a vCPU. It continues after playback ends, until
 `audiomxd` is killed; the respawned daemon stays quiet until the next
-playback. Host QEMU CPU goes to 200-340 %. With no device it never happens,
+playback. Host QEMU CPU goes to 200-360 %. With no device it never happens,
 because playback fails before a session starts.
 
 Playback inside the iOS simulator does not trigger it: after the full XCTest
 run (including 20 s of continuous playback) there was one such log line and
-`audiomxd` was idle. For simulator-only CI a device is therefore safe. Jobs
-that play audio on the macOS side should `sudo killall audiomxd` afterwards,
-or the image needs a console session (auto-login, not tried here).
+`audiomxd` was idle. Image layer 64 (`images/64-audiomxd-off.sh`, IMAGES.md)
+turns the daemon off; the analysis follows.
+
+**Mechanism** (26.4 dyld shared cache: MediaExperience,
+AudioAccessoryServices, AudioSession; `/usr/libexec/audiomxd`). On macOS
+`audiomxd` is the Smart Routing daemon (automatic switching of Bluetooth
+headphones between devices):
+
+1. `-[AVAudioSession(CatalystPrivate) initForMacOS]` calls
+   `SessionCore::createSessionInServer` when the feature flag
+   `BluetoothFeatures/SmartRoutingMacOS` is on (CoreAudio checks the same
+   flag, `AMCP::Feature_Flags::allow_smart_routing_macos`), so macOS players
+   get a session in `audiomxd` through `com.apple.audio.AudioSession`, a Mach
+   service that launchd only publishes under the same flag.
+2. When the session starts playing, `-[MXSessionManager
+   requestForSharedOwnership:…]` → `-[MXAudioAccessoryServices
+   requestForSharedRoute:…]` → `updateAppState:startIO:` →
+   `-[BTAudioRoutingRequest updateAudioState:withState:]`. There is no opt-out:
+   `+[BTAudioRoutingRequest isSupported]` returns YES unconditionally,
+   `isEligibleForBTSmartRoutingConsideration` (default YES, settable only by
+   the client) only decides "force hijack", and the only skip is a score of 0
+   from a per-app allow list that comes from a MobileAsset or `/AppleInternal`.
+3. `-[BTAudioRoutingRequest _ensureXPCStarted]`: in a daemon (`launchd` session
+   type "System") it targets the console user's per-user
+   `com.apple.BluetoothServices` agent, found with
+   `SCDynamicStoreCopyConsoleUser` (the configd load). With no console user it
+   calls `_handleServerDied` and returns "No user logged in", before any XPC.
+4. `_handleServerDied` posts `AudioAccessorydDiedNotification`;
+   `-[MXAudioAccessoryServices handleServerDeath]` invalidates the request,
+   and `initializeAudioAccessoryConnection` makes a new one and sends the
+   current state again ("UpdateAudioState … Stop apps {}"), which fails the
+   same way. Nothing backs off, so the loop runs until the process dies.
+
+`audiomxd`'s `main` exits at once ("audiomxd feature flag is disabled,
+exiting") when `SmartRoutingMacOS` is off; on macOS it has no other job.
+
+**Options measured** (8 GiB, 4 vCPUs, `GFX=none`, golden v11; one `afplay` of
+a 5 s WAV plus a 5 s `AVAudioEngine` tone, then the guest watched; guest
+figures are % of a vCPU averaged over the window, host figures % of one host
+core for the QEMU process):
+
+| | playback | `audiomxd` / `configd` / `logd` after playback | host QEMU after playback |
+|---|---|---|---|
+| stock | works | 80-83 / 41-42 / 4-5 %, 110,000-190,000 "No user logged in" lines/min | 362 % (idle before: 11 %) |
+| `bluetoothd` frozen (SIGSTOP) | works | 83 / 42 / 5 % | - |
+| `SmartRoutingMacOS` off | works | 0 / 0 / 0 %, but `audiomxd` relaunched every 5 s | - |
+| `SmartRoutingMacOS` and `MoveMXRoutingToAudiomxdOnMac` off (layer 64) | works | 0 / 0 / 0.1 %, `audiomxd` never runs | 9-15 % (idle before: 9 %) |
+
+- **Disabling Bluetooth** does nothing: the failure is the in-process
+  console-user check, before any connection. `launchctl bootout
+  system/com.apple.bluetoothd` is refused under SIP; `launchctl disable` of
+  `com.apple.audiomxd` is accepted but dropped at the next boot (SIP-protected
+  job, like XProtect's).
+- **`SmartRoutingMacOS` alone** stops the loop, but `audiomxd` still publishes
+  the routing services gated by `MediaExperience/MoveMXRoutingToAudiomxdOnMac`
+  (`com.apple.airplay.agent.services`, `com.apple.coremedia.routingcontext.xpc`
+  and others). `AirPlayXPCHelper` and `mediaremoted` each leave a message on
+  one of them at boot (`lsmp -p 1`: msgcount 1 on those two ports; `lsmp -a`
+  shows the senders), the daemon exits without receiving it, and launchd
+  relaunches it every 5 s (`ThrottleInterval`) for as long as the guest runs:
+  12 spawns a minute, ~36 ms each, plus a kernel "triggered unnest" log line
+  per spawn. Turning that flag off too keeps routing in its pre-26 place; then
+  nothing is queued and `audiomxd` is never started (0 runs in 20 minutes
+  with playback and a simulator test, nor after a further reboot).
+- **Auto-login** (a console session, `/etc/kcpassword` +
+  `com.apple.loginwindow autoLoginUser`) would satisfy step 3, but was not
+  tried: the guest account's password is set at step 05 from `GUEST_PASSWORD`
+  and is not stored anywhere, and it would add a full GUI session
+  (WindowServer, Dock, Finder; and without a GPU, WindowServer aborts every
+  minute) to every guest.
+- No preference turns the path off. The keys MediaExperience reads
+  (`useStaticAllowList`, which loads per-app scores from `/AppleInternal`,
+  `CanBeNowPlayingApps`, `assetsUpdateInterval`, `UsePerAppContextByDefault`
+  and entitlement-enforcement switches) do not reach it, and
+  AudioAccessoryServices has no gate for `BTAudioRoutingRequest`.
+- Feature-flag overrides in `/Library/Preferences/FeatureFlags/Domain/<Domain>.plist`
+  (`<Flag> = { Enabled = false }`) are honoured on a release build with SIP
+  on. launchd evaluates `#IfFeatureFlagEnabled` in job plists at boot, so
+  they take effect after a reboot.
+
+With layer 64: `afplay` and `AVAudioEngine` play (rendered 4.981 s of 5 s,
+same as stock); the iOS simulator XCTest (AVAudioEngine tone, AVAudioPlayer,
+20 s sustained tone) passes as before (its `AudioServicesPlaySystemSound`
+completion arrives late, as on stock images); the overrides survive guest
+reboots. What is lost is Smart Routing itself and the routing services'
+move into `audiomxd`, neither of which a guest without Bluetooth or a user
+session uses. Without the layer, a job that plays audio on the macOS side
+should `sudo killall audiomxd` afterwards.
+
+In one boot out of about eight in this work, `AppleVirtIOSound` stayed
+`!registered` (no output device; `afplay` failed with -66680); the next boot of
+the same disk was fine. Not investigated.
 
 ## Disk cache
 

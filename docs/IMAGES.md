@@ -24,7 +24,8 @@ Golden images contain an installed copy of macOS, the VM identity
 | 55 | `images/55-ios-simulator.sh` | `-v10` | iOS 26.4.1 simulator runtime (23E254a) |
 | 60 | `images/60-ci-tools.sh` | `-v11` | CI toolchain (below) |
 | 62 | `images/62-simulator-warm.sh` | `-v12` | simulator dyld shared cache built, newest iPhone / iPhone Pro devices booted once |
-| 65 | `images/65-gpu-headless.sh` (bake **with the GPU on**) | `-v13` | display sleep 1 min, baked-in crash reports removed, Metal present |
+| 64 | `images/64-audiomxd-off.sh` | `-v13` | Smart Routing feature flags off: no `audiomxd` loop after macOS-side playback |
+| 65 | `images/65-gpu-headless.sh` (bake **with the GPU on**) | `-v14` | display sleep 1 min, baked-in crash reports removed, Metal present |
 
 Gaps in the numbering are discarded experiments: v3 (timed state reset) and
 v5 (`launchctl disable` timed) did not help the boot stall; v8 (software
@@ -430,10 +431,46 @@ shuts down the newest `iPhone <N>` and `iPhone <N> Pro` devices
 devices by name rather than `simctl create` a new one; a new device pays the
 first-boot cost again. Each warmed device adds about 650 MB.
 
-### 65: GPU headless → v13
+### 64: audiomxd off → v13
 
 ```sh
-scripts/bake-golden.sh ~/vm-artifacts/tahoe-26.4-25E246-v12 ~/vm-artifacts/tahoe-26.4-25E246-v13 \
+GFX=none scripts/bake-golden.sh ~/vm-artifacts/tahoe-26.4-25E246-v12 ~/vm-artifacts/tahoe-26.4-25E246-v13 \
+    "audiomxd off (images/64-audiomxd-off.sh)" "bash -s" < images/64-audiomxd-off.sh
+```
+
+With a sound device (`AUDIO=virtio`, the launcher default), the first
+macOS-side playback (`afplay`, `AVAudioEngine`, AudioQueue) in a guest
+without a console user starts a loop in `audiomxd`: about 80 % of a vCPU for
+`audiomxd`, 40 % for `configd`, 100,000+ log lines a minute and over 300 % of
+a host core for QEMU, until `audiomxd` is killed (NOTES.md, Audio). This
+layer writes two feature-flag overrides:
+
+```text
+/Library/Preferences/FeatureFlags/Domain/BluetoothFeatures.plist   SmartRoutingMacOS            = { Enabled = false }
+/Library/Preferences/FeatureFlags/Domain/MediaExperience.plist     MoveMXRoutingToAudiomxdOnMac = { Enabled = false }
+```
+
+From the next boot, macOS players no longer register sessions with
+`audiomxd`, launchd publishes neither its `com.apple.audio.AudioSession`
+service nor its routing services, and the daemon is never started. The
+first flag alone stops the loop, but leaves `audiomxd` being relaunched every
+5 s (it exits at once with the flag off, while messages from
+`AirPlayXPCHelper` and `mediaremoted` wait on its routing services); the
+second keeps those services out of it. Playback through the default output
+and in the iOS simulator is unchanged; Smart Routing (automatic headphone
+switching) is gone, which a guest without Bluetooth never uses. The layer
+takes seconds; to undo it, delete the two plists and reboot.
+
+Check (the layer cannot, since the flags apply from the next boot):
+`sudo launchctl print system/com.apple.audiomxd | grep -c AudioSession` → 0
+and `runs = 0`; after `afplay` of any WAV, `pgrep -x audiomxd` stays empty and
+`log show --last 5m --predicate 'process == "audiomxd"'` shows no
+"No user logged in".
+
+### 65: GPU headless → v14
+
+```sh
+scripts/bake-golden.sh ~/vm-artifacts/tahoe-26.4-25E246-v13 ~/vm-artifacts/tahoe-26.4-25E246-v14 \
     "GPU headless (images/65-gpu-headless.sh)" "bash -s" < images/65-gpu-headless.sh
 ```
 
