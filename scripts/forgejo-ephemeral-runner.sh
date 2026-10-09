@@ -32,6 +32,8 @@
 # (a persistent `forgejo-runner cache-server` as seen from the guest, e.g.
 # http://10.0.2.2:4100/ for one on the VM host; systemd/vmapple-runner-cache.service),
 # so actions/cache survives the throwaway guests.
+# GPU_SLOTS (slot numbers that boot with the paravirtual GPU; with GPU_GOLDEN,
+# optional GPU_QEMU_BIN, GPU_VK_DRIVER_FILES, GPU_LABELS: see below).
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -76,9 +78,19 @@ if ! [[ "$forge_host" =~ ^[0-9.]+$ ]] && test -n "$forge_host"; then
 fi
 export GOLDEN="${GOLDEN:-$HOME/vm-artifacts/tahoe-26.4-25E246-v7}" CPUS="${CPUS:-8}" RAM="${RAM:-16G}"
 
-label_args=""
-IFS=',' read -r -a label_list <<<"$labels"
-for l in "${label_list[@]}"; do label_args+=" --label $(printf %q "$l")"; done
+# GPU slots: the slot numbers in GPU_SLOTS (e.g. "2") boot with the paravirtual
+# GPU (GFX=reims) from GPU_GOLDEN (an image with layer 65), optionally with their
+# own GPU_QEMU_BIN / GPU_VK_DRIVER_FILES, and also offer GPU_LABELS (default
+# macos-26-arm64-gpu:host), so jobs that need Metal (UI tests of apps that draw
+# with Metal) can ask for one. A GPU slot also takes ordinary jobs.
+gpu_slots=" ${GPU_SLOTS//,/ } "
+gpu_labels="${GPU_LABELS:-macos-26-arm64-gpu:host}"
+label_args_for() {
+    local l out="" list
+    IFS=',' read -r -a list <<<"$1"
+    for l in "${list[@]}"; do out+=" --label $(printf %q "$l")"; done
+    printf '%s' "$out"
+}
 
 register() {
     local name="$1"
@@ -87,7 +99,15 @@ register() {
 }
 
 slot() {
-    local n="$1" name reply id uuid token
+    local n="$1" name reply id uuid token labels="$labels" label_args
+    if [[ "$gpu_slots" == *" $n "* ]]; then
+        export GFX=reims GOLDEN="${GPU_GOLDEN:?GPU_SLOTS needs GPU_GOLDEN (an image with layer 65)}"
+        test -n "${GPU_QEMU_BIN:-}" && export QEMU_BIN="$GPU_QEMU_BIN"
+        test -n "${GPU_VK_DRIVER_FILES:-}" && export VK_DRIVER_FILES="$GPU_VK_DRIVER_FILES"
+        labels="$labels,$gpu_labels"
+        echo "[slot $n] GPU slot: $GOLDEN, labels $labels" >&2
+    fi
+    label_args="$(label_args_for "$labels")"
     # Slot N gets its own LAN tap and a stable MAC when NET_TAP_PREFIX is set.
     if test -n "${NET_TAP_PREFIX:-}"; then
         export TAP_IF="${NET_TAP_PREFIX}$n" TAP_MAC="$(printf '52:54:00:76:62:%02x' "$n")"

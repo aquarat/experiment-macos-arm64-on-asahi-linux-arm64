@@ -82,10 +82,15 @@ start)
     env | grep -E '^(CPUS|RAM|NET_DEVICE_OPTS|TAP_IF|TAP_MAC|INJECT|KVM_MMIO_PATCH|VMAPPLE_HANDOFF_PC|GFX|CONSOLE|XNU_BOOT_ARGS|CSR_CONFIG|QEMU_EXTRA_ARGS|REIMS_[A-Z_]+|VK_[A-Z_]+|MESA_[A-Z_]+|SSH_PORT|SSH_BIND|MEMFD|BALLOON[A-Z_]*|AUDIO[A-Z_]*)=' \
         > "$run/env.txt" || true
     echo "golden=$golden booter=$booter" >> "$run/env.txt"
+    # Reims' failure log defaults to an uncapped file in /tmp (often RAM; ~25 MB
+    # per 10 min of simulator UI tests): keep it with the run's logs, where a
+    # named path gets Reims' 64 MiB cap, and leave the verbose draw log off.
     (
         cd "$repo_root"
         GUEST_DIR="$run" AVPBOOTER="$booter" LOG_DIR="$run/logs" QMP_SOCKET="$qmp" \
             REIMS_VGPU_WINDOW="${REIMS_VGPU_WINDOW:-0}" CONSOLE="${CONSOLE:-none}" \
+            REIMS_VGPU_FAIL_LOG="${REIMS_VGPU_FAIL_LOG:-$run/logs/reims-fail.log}" \
+            REIMS_VGPU_DRAW_LOG_PATH="${REIMS_VGPU_DRAW_LOG_PATH:-off}" \
             setsid nohup scripts/launch-gui-kvm.sh > "$run/logs/launcher.log" 2>&1 < /dev/null &
         echo $! > "$run/launcher.pid"
     )
