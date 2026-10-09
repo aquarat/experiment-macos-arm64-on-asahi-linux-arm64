@@ -20,13 +20,11 @@ ref="${REIMS_REF:-master}"
 die() { echo "error: $*" >&2; exit 1; }
 for c in git cargo ninja meson cc; do command -v "$c" >/dev/null || die "missing $c"; done
 
-if test -d "$out/.git"; then
-    git -C "$out" fetch -q "$url" "$ref"
-    git -C "$out" checkout -q --detach FETCH_HEAD
-else
-    git clone -q "$url" "$out"
-    git -C "$out" checkout -q --detach "$ref"
-fi
+# Fetch the ref in both cases: `checkout --detach <branch>` on a fresh clone
+# fails for any branch but the default (git tries to create a tracking branch).
+test -d "$out/.git" || git clone -q "$url" "$out"
+git -C "$out" fetch -q "$url" "$ref"
+git -C "$out" checkout -q --detach FETCH_HEAD
 if test -n "${QEMU_URL:-}"; then
     # Build unpushed QEMU commits (e.g. from scripts/sync-upstream.sh).
     git -C "$out" submodule init -q vendor/qemu
