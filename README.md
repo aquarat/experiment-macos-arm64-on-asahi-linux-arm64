@@ -286,10 +286,10 @@ moving bundles between hosts: [docs/IMAGES.md](docs/IMAGES.md).
   so some Skia/Compose drawing is not rendered yet. Screenshots of such
   apps can come out blank or flat colour. UI tests that drive the app
   through accessibility pass. This is being fixed.
-- **GPU slot open issues** ([PERFORMANCE.md](docs/PERFORMANCE.md)): some
-  object references resolve to the wrong object type (`wrong_type`), and
+- **GPU slot open issues** ([PERFORMANCE.md](docs/PERFORMANCE.md)):
   `memcpy` takes 70 % of the drain's CPU time, part of it an extra copy that
-  can go. GPU slots need the privately built, patched Honeykrisp. llvmpipe
+  can go. GPU slots need Honeykrisp Mesa built with this project's patch
+  (`scripts/build-mesa-honeykrisp.sh`), not the distribution's Mesa. llvmpipe
   cannot run the iOS simulator. Only the Forgejo orchestrator has per-slot
   GPU settings.
 - **Guests without a GPU** have no Metal. Apps that need Metal cannot run

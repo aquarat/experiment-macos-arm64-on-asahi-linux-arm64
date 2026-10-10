@@ -155,7 +155,6 @@ Known gaps on the deployed build:
 
 - Pipelines with no fragment function are refused, so screenshots of
   Compose/Skia apps are mostly flat colour. Being fixed.
-- Some object references resolve to the wrong object type (`wrong_type`).
 - After compaction, `memcpy` is 70 % of the drain's CPU time. About 44 %
   of that is an extra copy through an intermediate buffer, which can go.
 
