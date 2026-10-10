@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 45: boot once under a QEMU with the avp,rtc clock so the image's NVRAM
 # (in AUX) gets com.apple.System.rtc-offset.                         (Tahoe v7)
 # Runs INSIDE the guest; the change is made by macOS itself at boot/shutdown:

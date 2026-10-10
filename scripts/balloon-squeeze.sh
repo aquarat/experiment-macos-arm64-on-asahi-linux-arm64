@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Hand a running guest's unused memory back to the host: inflate the balloon
 # step by step down to a floor, then deflate to the full size again.
 #

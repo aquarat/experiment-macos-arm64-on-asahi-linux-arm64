@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 62: pre-warm the iOS simulator so CI jobs don't pay for first use.
 # Runs INSIDE the guest on top of layer 60 (any GFX; GFX=none is fine):
 #

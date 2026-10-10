@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Entry point for the runner systemd units: load this host's profile, then
 # run one of the ephemeral runner orchestrators with its VM_SLOTS.
 #

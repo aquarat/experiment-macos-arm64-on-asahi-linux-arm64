@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Boot a golden repeatedly and record, per boot, the time to SSH and whether
 # AppleVirtIOSound registered (macOS 26 guests with AUDIO=virtio).
 #

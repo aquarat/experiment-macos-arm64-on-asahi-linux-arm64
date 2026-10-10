@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
 """Draw the benchmark charts in docs/benchmarks/ from docs/benchmarks/data/.
 
 Python 3 standard library only (no matplotlib). Each chart is a static SVG

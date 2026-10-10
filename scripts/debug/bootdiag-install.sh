@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Guest-side installer for a boot-diagnostics LaunchDaemon (debug goldens only):
 #   scripts/bake-golden.sh <src> <dst> "DEBUG: bootdiag" "bash -s" < scripts/debug/bootdiag-install.sh
 # Output reaches the serial log when booted with the verbose injector

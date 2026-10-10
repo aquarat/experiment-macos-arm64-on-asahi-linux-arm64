@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Bring the aquarat forks up to date with their upstreams.
 #
 #   scripts/sync-upstream.sh merge [WORKDIR]   # fetch + merge into local masters, bump vendor/qemu

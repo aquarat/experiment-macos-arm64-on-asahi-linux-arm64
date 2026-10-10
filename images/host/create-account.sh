@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Step 05 (macOS 26): create the guest account without a GUI, from a KVM
 # single-user boot driven over the serial console, and promote the result.
 # Runs on the Linux host:

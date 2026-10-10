@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Step 00: restore a pristine guest bundle with Virtualization.framework.
 # Runs on NATIVE macOS (Apple Silicon), from a checkout of this repository:
 #

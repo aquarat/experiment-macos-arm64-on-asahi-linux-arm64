@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Derive a new golden bundle by running a provisioning command in a guest
 # booted from an existing one, then shutting it down cleanly.
 #

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Cross-compile forgejo-runner for darwin/arm64 (Forgejo publishes no macOS
 # build). Runs on the Linux (or macOS) host, not in the guest; layer
 # images/30-forgejo-runner-node.sh then installs the result.

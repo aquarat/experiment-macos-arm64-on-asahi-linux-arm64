@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 64: turn off Smart Routing (audiomxd) so playback cannot start its
 # no-console-user loop. Runs INSIDE the guest on top of layer 62 (any GFX;
 # GFX=none is fine):

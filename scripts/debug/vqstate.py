@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
 """Dump the virtio queue state of a running vmapple guest over QMP.
 
   scripts/debug/vqstate.py <qmp-socket> [device-name-filter]

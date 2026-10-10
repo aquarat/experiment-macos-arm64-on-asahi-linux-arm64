@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Serve Forgejo Actions jobs with one throwaway macOS guest per job.
 #
 #   FORGEJO_URL=https://forgejo.example FORGEJO_TOKEN=<token> FORGEJO_SCOPE=<scope> \

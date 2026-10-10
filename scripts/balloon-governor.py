@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
 """Size a macOS guest's memory balloon to what the guest needs, continuously.
 
     scripts/balloon-governor.py --qmp SOCKET --ssh-port PORT [--key KEY] [--user USER]

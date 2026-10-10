@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 10: headless settings, clock, Command Line Tools.     (Tahoe v1, 2nd half)
 # Runs INSIDE the guest as the guest user (passwordless sudo), via:
 #

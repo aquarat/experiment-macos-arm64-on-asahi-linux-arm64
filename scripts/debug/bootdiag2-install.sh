@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Guest-side installer for boot diagnostics with a DHCP kick (debug goldens only):
 #   scripts/bake-golden.sh <src> <dst> "DEBUG: bootdiag2" "bash -s" < scripts/debug/bootdiag2-install.sh
 # Logs clock, DHCP client and configd state to the console every 5 s for

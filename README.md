@@ -322,10 +322,13 @@ moving bundles between hosts: [docs/IMAGES.md](docs/IMAGES.md).
   two macOS VMs per Mac.
 - Never commit firmware, IPSWs, restore images, VM disks, VM identities or
   logs. `.gitignore` covers the expected locations and formats.
+- This project is licensed under GPL-2.0-or-later ([LICENSE](LICENSE)).
+  Exceptions are listed in [LICENSING.md](LICENSING.md): files by the
+  original upstream author, Anees Iqbal (steelbrain), which remain his and
+  are not licensed, and the patches in `patches/`, which follow the licence
+  of the project they patch.
 - The QEMU and Reims changes live in the forks, which keep their upstream
-  licences (Reims: LGPL-3.0-or-later). The kernel and Mesa changes are patch
-  files in `patches/`.
-- This repository does not yet contain a licence file of its own.
+  licences.
 
 Support: this is maintained for its own production use, with no support
 promise. Reports with exact host, kernel, QEMU, firmware and guest versions

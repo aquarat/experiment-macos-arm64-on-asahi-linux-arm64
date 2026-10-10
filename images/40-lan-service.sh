@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 40: a DHCP network service "LAN" on en1, for the optional second NIC on
 # a host tap/bridge (launch-kvm.sh TAP_IF/TAP_MAC).                (Tahoe v6)
 # Runs INSIDE the guest. en1 exists only if the bake guest has the tap NIC:

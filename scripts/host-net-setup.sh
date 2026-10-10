@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Host networking for guests that need their own address (run with sudo).
 #
 #   sudo scripts/host-net-setup.sh taps <bridge> <slots>   # persistent vmtap1..N on <bridge>

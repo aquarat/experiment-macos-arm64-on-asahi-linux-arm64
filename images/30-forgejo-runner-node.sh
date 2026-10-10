@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 30: forgejo-runner (darwin-arm64 build) in ~/forgejo-runner and
 # Node.js LTS in ~/node, on PATH via ~/.zshenv.                    (Tahoe v4)
 # Runs INSIDE the guest as the guest user. forgejo-runner has no macOS release:

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Serve GitHub Actions jobs with one throwaway macOS guest per job.
 #
 #   GH_TOKEN=<token> GH_SCOPE=repos/<owner>/<repo> scripts/gha-ephemeral-runner.sh [slots]

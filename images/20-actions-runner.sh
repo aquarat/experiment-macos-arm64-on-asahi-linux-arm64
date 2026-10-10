@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 20: GitHub Actions runner in ~/actions-runner.             (Tahoe v2)
 # Runs INSIDE the guest as the guest user, via:
 #

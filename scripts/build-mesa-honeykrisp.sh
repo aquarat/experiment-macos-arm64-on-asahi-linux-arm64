@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Build a private copy of Mesa's Asahi Vulkan driver (Honeykrisp) with the
 # patches in patches/mesa/, for QEMU's Reims GPU to render on the real GPU.
 # The system Mesa is not touched; guests use it through VK_DRIVER_FILES.

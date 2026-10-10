@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Prepare a Linux (Fedora Asahi) host to run macOS guests with the
 # paravirtual GPU on the real GPU (Honeykrisp).
 #

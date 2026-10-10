@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Pre-seed a freshly restored (never booted) macOS guest disk so it boots
 # straight to a usable SSH account without Setup Assistant.
 # Run on the macOS host as root, with the VM stopped:

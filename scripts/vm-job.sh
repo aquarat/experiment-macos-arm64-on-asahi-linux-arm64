@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Run one command in a throwaway macOS guest and discard the guest afterwards.
 #
 #   scripts/vm-job.sh <command...>          # runs in the guest via SSH; stdin is passed through

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Build qemu-system-aarch64 (vmapple + KVM + Reims GPU) from the aquarat
 # forks; no patch files are applied.
 #

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 60: CI toolchain on top of Xcode + iOS simulator (layer 50).
 # Runs inside the guest as the guest user (passwordless sudo):
 #

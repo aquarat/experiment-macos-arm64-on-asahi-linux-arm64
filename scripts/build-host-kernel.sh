@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Build a Fedora Asahi kernel-16k with the macOS-guest KVM patches, from a
 # base kernel SRPM, in a private rpmbuild topdir (the user's ~/rpmbuild is
 # never touched).

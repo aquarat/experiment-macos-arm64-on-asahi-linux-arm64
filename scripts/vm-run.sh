@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # One VM per invocation, from a read-only golden bundle.
 #
 #   GOLDEN=~/vm-artifacts/<bundle> scripts/vm-run.sh start <name>   [env passed to launch-gui-kvm.sh / launch-kvm.sh]

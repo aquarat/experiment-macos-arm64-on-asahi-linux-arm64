@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 55: the iOS simulator platform matching the installed Xcode
 # (Xcode 26.4.1 -> iOS 26.4.1, 23E254a; an 8.46 GB MobileAsset).     (Tahoe v10)
 # Runs INSIDE the guest on top of layer 50 (Xcode, scripts/bake-xcode.sh):

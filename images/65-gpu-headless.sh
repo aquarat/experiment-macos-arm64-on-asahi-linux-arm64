@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Layer 65: headless settings for guests that run with the paravirtual GPU.
 # Bake with the GPU on (the launcher's default GFX=reims, a working
 # VK_DRIVER_FILES), never with GFX=none:

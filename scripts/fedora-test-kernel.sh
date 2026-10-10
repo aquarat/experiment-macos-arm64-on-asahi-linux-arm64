@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Install a locally built Fedora Asahi kernel beside the default one without
 # changing the default boot entry, and select it for exactly one boot.
 #
