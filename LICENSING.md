@@ -38,6 +38,9 @@ project. Only the later changes are under `GPL-2.0-or-later`:
 - `scripts/launch-gui-kvm.sh`
 - `scripts/launch-kvm.sh`
 - `README.md`, `AGENTS.md`
+- `patches/linux-7.1.13-vmapple-pac-vmkey.patch`: his
+  `linux-6.19-vmapple-pac-vmkey.patch` rebased to Linux 7.1.13; the code
+  changes are his.
 
 Most of these belong to the legacy bring-up flow
 ([docs/LEGACY-BRINGUP.md](docs/LEGACY-BRINGUP.md)). The current flow still
@@ -53,7 +56,7 @@ project's licence:
 
 | Patch | Licence |
 | --- | --- |
-| `patches/linux-7.1.13-*.patch` | GPL-2.0 (Linux) |
+| `patches/linux-7.1.13-kvm-nisv-ldst.patch` | GPL-2.0 (Linux) |
 | `patches/qemu-*.patch` | GPL-2.0-or-later (QEMU) |
 | `patches/mesa/*.patch` | MIT (Mesa) |
 | `patches/macosvm-hwmodel-override.patch` | macosvm's licence |
