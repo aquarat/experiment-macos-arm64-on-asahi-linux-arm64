@@ -9,6 +9,18 @@ This is research code, not a polished virtual-machine product. It patches the
 Asahi kernel, QEMU, and Reims to bridge assumptions that normally only hold
 when `vmapple` runs under Apple's Hypervisor.framework.
 
+## Results
+
+With Reims and Vulkan, a macOS 26 guest gets a GPU for Metal. CPU-bound
+simulator tests run as fast as in a guest without a GPU, and the UI tests of an
+app that cannot run without one run about 1.6x faster than on the earlier GPU
+build. More charts, and how they were measured, are in
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
+[![iOS simulator unit tests: GPU builds against no GPU](docs/benchmarks/unit-test.svg)](docs/PERFORMANCE.md#simulator-unit-tests)
+
+[![UI tests on a GPU-accelerated macOS 26 guest](docs/benchmarks/ui-tests.svg)](docs/PERFORMANCE.md#ui-tests)
+
 ## M1 Max / M1 Ultra, Fedora 44: headless ephemeral runners
 
 On M1 Max (t6001) and M1 Ultra (t6002) hosts running Fedora Asahi Remix 44,
