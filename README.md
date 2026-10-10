@@ -16,6 +16,8 @@ this tree boots **macOS 13.6 Ventura and macOS 26.4 Tahoe** under KVM to SSH
 in about 10–20 s, with no host window, desktop session or GDB. Each job runs
 in a throwaway reflink clone of a read-only golden bundle. Technical findings,
 failures and measurements are summarised in [docs/NOTES.md](docs/NOTES.md).
+Benchmarks and charts (GPU-accelerated macOS 26 guests, boot reliability,
+memory balloon) are in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 Differences from the M2 Pro flow below:
 
 | Layer | Change |

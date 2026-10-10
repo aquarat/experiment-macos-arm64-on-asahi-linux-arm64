@@ -1,0 +1,22 @@
+date,series,metric,low,high,unit,note,source
+2026-10-09,gpu-main-prestamp,unit_test_wall,204,225,s,,GPU series report 2026-10-10
+2026-10-09,gpu-worker,probe_cold_wall,240,290,s,,lab notes 2026-10-09; QEMU 2cd151d3b4 commit message
+2026-10-10,none,app_suite_wall,,,s,cannot run: the app needs Metal,GPU series report 2026-10-10
+2026-10-09,gpu-worker-nocompact,drain_busy,1032,1200,s,,GPU series report 2026-10-10
+2026-10-10,candidate,drain_busy,499,529,s,,GPU series report 2026-10-10
+2026-10-10,gpu-main-compact,drain_busy,472,484,s,,GPU series report 2026-10-10
+2026-10-09,gpu-worker-nocompact,tranche_p50,117,214,ms,,GPU series report 2026-10-10
+2026-10-10,candidate,tranche_p50,30,41,ms,,GPU series report 2026-10-10
+2026-10-10,gpu-main-compact,tranche_p50,36,42,ms,,GPU series report 2026-10-10
+2026-10-09,gpu-worker-nocompact,tranche_p90,1.8,2.2,s,,GPU series report 2026-10-10
+2026-10-10,candidate,tranche_p90,0.56,1.5,s,,GPU series report 2026-10-10
+2026-10-10,gpu-main-compact,tranche_p90,0.068,0.072,s,,GPU series report 2026-10-10
+2026-10-09,gpu-worker-nocompact,tranche_max,6.2,9.7,s,,GPU series report 2026-10-10
+2026-10-10,candidate,tranche_max,2.6,3.5,s,,GPU series report 2026-10-10
+2026-10-10,gpu-main-compact,tranche_max,1,1,s,about 1 s,GPU series report 2026-10-10
+2026-10-09,gpu-worker-nocompact,vcpu_wait_total,100,135,s,,GPU series report 2026-10-10
+2026-10-10,candidate,vcpu_wait_total,17,19,s,,GPU series report 2026-10-10
+2026-10-10,gpu-main-compact,vcpu_wait_total,0,0,s,"0, but vCPUs wait on QEMU's big lock instead",GPU series report 2026-10-10
+2026-10-09,gpu-worker-nocompact,vcpu_wait_max,1.3,2.3,s,,GPU series report 2026-10-10
+2026-10-10,candidate,vcpu_wait_max,0.34,0.65,s,,GPU series report 2026-10-10
+2026-10-10,gpu-main-compact,vcpu_wait_max,0,0,s,"0, but vCPUs wait on QEMU's big lock instead",GPU series report 2026-10-10

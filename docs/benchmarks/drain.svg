@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="802" viewBox="0 0 780 802" role="img" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title>Reims drain behaviour over a UI-test session</title>
+<desc>Drain ranges per build: drain_busy gpu-worker-nocompact 1032-1200 s; drain_busy candidate 499-529 s; drain_busy gpu-main-compact 472-484 s; tranche_p50 gpu-worker-nocompact 117-214 ms; tranche_p50 candidate 30-41 ms; tranche_p50 gpu-main-compact 36-42 ms; tranche_p90 gpu-worker-nocompact 1.8-2.2 s; tranche_p90 candidate 0.56-1.5 s; tranche_p90 gpu-main-compact 0.068-0.072 s; tranche_max gpu-worker-nocompact 6.2-9.7 s; tranche_max candidate 2.6-3.5 s; tranche_max gpu-main-compact 1-1 s; vcpu_wait_total gpu-worker-nocompact 100-135 s; vcpu_wait_total candidate 17-19 s; vcpu_wait_total gpu-main-compact 0-0 s; vcpu_wait_max gpu-worker-nocompact 1.3-2.3 s; vcpu_wait_max candidate 0.34-0.65 s; vcpu_wait_max gpu-main-compact 0-0 s</desc>
+<rect x="0.5" y="0.5" width="779" height="801" rx="10" fill="#fcfcfb" stroke="#dddcd5"/>
+<text x="22.0" y="38.0" font-size="17" fill="#0b0b0b" text-anchor="start" font-weight="600">Reims drain behaviour over a UI-test session</text>
+<text x="22.0" y="57.0" font-size="12.5" fill="#52514e" text-anchor="start">How long the device's command drain runs without a break (a tranche), how long vCPUs</text>
+<text x="22.0" y="76.0" font-size="12.5" fill="#52514e" text-anchor="start">wait for the device lock, and total drain busy time. Capsules span the runs of each build.</text>
+<text x="22.0" y="100.0" font-size="13.5" fill="#0b0b0b" text-anchor="start" font-weight="600">Drain tranche length: 90th percentile</text>
+<line x1="225.0" y1="112.0" x2="225.0" y2="214.0" stroke="#b9b8ae" stroke-width="1"/>
+<text x="225.0" y="229.0" font-size="11" fill="#6b6a65" text-anchor="middle">0</text>
+<line x1="310.5" y1="112.0" x2="310.5" y2="214.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="310.5" y="229.0" font-size="11" fill="#6b6a65" text-anchor="middle">0.5</text>
+<line x1="396.1" y1="112.0" x2="396.1" y2="214.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="396.1" y="229.0" font-size="11" fill="#6b6a65" text-anchor="middle">1</text>
+<line x1="481.6" y1="112.0" x2="481.6" y2="214.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="481.6" y="229.0" font-size="11" fill="#6b6a65" text-anchor="middle">1.5</text>
+<line x1="567.1" y1="112.0" x2="567.1" y2="214.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="567.1" y="229.0" font-size="11" fill="#6b6a65" text-anchor="middle">2</text>
+<line x1="652.6" y1="112.0" x2="652.6" y2="214.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="652.6" y="229.0" font-size="11" fill="#6b6a65" text-anchor="middle">2.5</text>
+<text x="215.0" y="133.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, worker, no compaction</text>
+<rect x="532.9" y="124.0" width="68.4" height="10.0" rx="5" fill="#2a78d6" fill-opacity="0.5"/>
+<text x="609.3" y="133.5" font-size="12" fill="#52514e" text-anchor="start">1.8–2.2 s</text>
+<text x="215.0" y="167.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, main loop + compaction</text>
+<rect x="232.0" y="158.0" width="10.0" height="10.0" rx="5" fill="#2a78d6" fill-opacity="0.5"/>
+<text x="250.0" y="167.5" font-size="12" fill="#52514e" text-anchor="start">0.068–0.072 s</text>
+<text x="215.0" y="201.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, final candidate</text>
+<rect x="320.8" y="192.0" width="160.8" height="10.0" rx="5" fill="#eb6834" fill-opacity="0.5"/>
+<text x="489.6" y="201.5" font-size="12" fill="#52514e" text-anchor="start">0.56–1.5 s</text>
+<text x="438.8" y="245.0" font-size="11.5" fill="#52514e" text-anchor="middle">Tranche length (s)</text>
+<text x="22.0" y="277.0" font-size="13.5" fill="#0b0b0b" text-anchor="start" font-weight="600">Drain tranche length: longest</text>
+<line x1="225.0" y1="289.0" x2="225.0" y2="391.0" stroke="#b9b8ae" stroke-width="1"/>
+<text x="225.0" y="406.0" font-size="11" fill="#6b6a65" text-anchor="middle">0</text>
+<line x1="315.9" y1="289.0" x2="315.9" y2="391.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="315.9" y="406.0" font-size="11" fill="#6b6a65" text-anchor="middle">2</text>
+<line x1="406.8" y1="289.0" x2="406.8" y2="391.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="406.8" y="406.0" font-size="11" fill="#6b6a65" text-anchor="middle">4</text>
+<line x1="497.7" y1="289.0" x2="497.7" y2="391.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="497.7" y="406.0" font-size="11" fill="#6b6a65" text-anchor="middle">6</text>
+<line x1="588.6" y1="289.0" x2="588.6" y2="391.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="588.6" y="406.0" font-size="11" fill="#6b6a65" text-anchor="middle">8</text>
+<line x1="679.5" y1="289.0" x2="679.5" y2="391.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="679.5" y="406.0" font-size="11" fill="#6b6a65" text-anchor="middle">10</text>
+<text x="215.0" y="310.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, worker, no compaction</text>
+<rect x="506.8" y="301.0" width="159.1" height="10.0" rx="5" fill="#2a78d6" fill-opacity="0.5"/>
+<text x="673.9" y="310.5" font-size="12" fill="#52514e" text-anchor="start">6.2–9.7 s</text>
+<text x="215.0" y="344.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, main loop + compaction</text>
+<circle cx="270.5" cy="340.0" r="4.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="1.5"/>
+<text x="282.5" y="344.5" font-size="12" fill="#52514e" text-anchor="start">about 1 s</text>
+<text x="215.0" y="378.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, final candidate</text>
+<rect x="343.2" y="369.0" width="40.9" height="10.0" rx="5" fill="#eb6834" fill-opacity="0.5"/>
+<text x="392.1" y="378.5" font-size="12" fill="#52514e" text-anchor="start">2.6–3.5 s</text>
+<text x="452.3" y="422.0" font-size="11.5" fill="#52514e" text-anchor="middle">Tranche length (s)</text>
+<text x="22.0" y="454.0" font-size="13.5" fill="#0b0b0b" text-anchor="start" font-weight="600">vCPU time spent waiting for the device lock</text>
+<line x1="225.0" y1="466.0" x2="225.0" y2="568.0" stroke="#b9b8ae" stroke-width="1"/>
+<text x="225.0" y="583.0" font-size="11" fill="#6b6a65" text-anchor="middle">0</text>
+<line x1="298.1" y1="466.0" x2="298.1" y2="568.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="298.1" y="583.0" font-size="11" fill="#6b6a65" text-anchor="middle">50</text>
+<line x1="371.2" y1="466.0" x2="371.2" y2="568.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="371.2" y="583.0" font-size="11" fill="#6b6a65" text-anchor="middle">100</text>
+<line x1="444.3" y1="466.0" x2="444.3" y2="568.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="444.3" y="583.0" font-size="11" fill="#6b6a65" text-anchor="middle">150</text>
+<text x="215.0" y="487.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, worker, no compaction</text>
+<rect x="371.2" y="478.0" width="51.2" height="10.0" rx="5" fill="#2a78d6" fill-opacity="0.5"/>
+<text x="430.4" y="487.5" font-size="12" fill="#52514e" text-anchor="start">100–135 s</text>
+<text x="215.0" y="521.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, main loop + compaction</text>
+<text x="233.0" y="521.5" font-size="12" fill="#52514e" text-anchor="start">0, but vCPUs wait on QEMU's big lock instead</text>
+<text x="215.0" y="555.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, final candidate</text>
+<rect x="246.3" y="546.0" width="10.0" height="10.0" rx="5" fill="#eb6834" fill-opacity="0.5"/>
+<text x="264.3" y="555.5" font-size="12" fill="#52514e" text-anchor="start">17–19 s</text>
+<text x="334.7" y="599.0" font-size="11.5" fill="#52514e" text-anchor="middle">Total wait (s)</text>
+<text x="22.0" y="631.0" font-size="13.5" fill="#0b0b0b" text-anchor="start" font-weight="600">Drain thread busy time over the session</text>
+<line x1="225.0" y1="643.0" x2="225.0" y2="745.0" stroke="#b9b8ae" stroke-width="1"/>
+<text x="225.0" y="760.0" font-size="11" fill="#6b6a65" text-anchor="middle">0</text>
+<line x1="313.2" y1="643.0" x2="313.2" y2="745.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="313.2" y="760.0" font-size="11" fill="#6b6a65" text-anchor="middle">250</text>
+<line x1="401.4" y1="643.0" x2="401.4" y2="745.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="401.4" y="760.0" font-size="11" fill="#6b6a65" text-anchor="middle">500</text>
+<line x1="489.6" y1="643.0" x2="489.6" y2="745.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="489.6" y="760.0" font-size="11" fill="#6b6a65" text-anchor="middle">750</text>
+<line x1="577.9" y1="643.0" x2="577.9" y2="745.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="577.9" y="760.0" font-size="11" fill="#6b6a65" text-anchor="middle">1000</text>
+<line x1="666.1" y1="643.0" x2="666.1" y2="745.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="666.1" y="760.0" font-size="11" fill="#6b6a65" text-anchor="middle">1250</text>
+<text x="215.0" y="664.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, worker, no compaction</text>
+<rect x="589.2" y="655.0" width="59.3" height="10.0" rx="5" fill="#2a78d6" fill-opacity="0.5"/>
+<text x="656.4" y="664.5" font-size="12" fill="#52514e" text-anchor="start">1032–1200 s</text>
+<text x="215.0" y="698.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, main loop + compaction</text>
+<rect x="388.7" y="689.0" width="10.0" height="10.0" rx="5" fill="#2a78d6" fill-opacity="0.5"/>
+<text x="406.7" y="698.5" font-size="12" fill="#52514e" text-anchor="start">472–484 s</text>
+<text x="215.0" y="732.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">GPU, final candidate</text>
+<rect x="401.1" y="723.0" width="10.6" height="10.0" rx="5" fill="#eb6834" fill-opacity="0.5"/>
+<text x="419.7" y="732.5" font-size="12" fill="#52514e" text-anchor="start">499–529 s</text>
+<text x="445.5" y="776.0" font-size="11.5" fill="#52514e" text-anchor="middle">Busy time (s)</text>
+</svg>

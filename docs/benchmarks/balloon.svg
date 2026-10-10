@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="357" viewBox="0 0 780 357" role="img" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title>Memory balloon: host memory a macOS 26 guest holds</title>
+<desc>Host footprint: idle-off footprint_avg 8.78 GB; idle-off footprint_peak 10.09 GB; idle-gov footprint_avg 4.84 GB; idle-gov footprint_peak 6.67 GB; job-off footprint_avg 9.85 GB; job-off footprint_avg 9.72 GB; job-off footprint_peak 10.5 GB; job-gov footprint_avg 8.85 GB; job-gov footprint_avg 9.05 GB; job-gov footprint_peak 10.5 GB; job-none-off footprint_avg 9.63 GB; job-none-off footprint_peak 10.28 GB; job-none-gov footprint_avg 8.83 GB; job-none-gov footprint_peak 10.23 GB</desc>
+<rect x="0.5" y="0.5" width="779" height="356" rx="10" fill="#fcfcfb" stroke="#dddcd5"/>
+<text x="22.0" y="38.0" font-size="17" fill="#0b0b0b" text-anchor="start" font-weight="600">Memory balloon: host memory a macOS 26 guest holds</text>
+<text x="22.0" y="57.0" font-size="12.5" fill="#52514e" text-anchor="start">Average host footprint of a 10 GiB guest (4 vCPUs, guest RAM on a shared memfd), sampled</text>
+<text x="22.0" y="76.0" font-size="12.5" fill="#52514e" text-anchor="start">every 2 s. Grey: no balloon. Blue: scripts/balloon-governor.py. Lower is better.</text>
+<line x1="239.0" y1="96.0" x2="239.0" y2="300.0" stroke="#b9b8ae" stroke-width="1"/>
+<text x="239.0" y="315.0" font-size="11" fill="#6b6a65" text-anchor="middle">0</text>
+<line x1="312.3" y1="96.0" x2="312.3" y2="300.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="312.3" y="315.0" font-size="11" fill="#6b6a65" text-anchor="middle">2</text>
+<line x1="385.6" y1="96.0" x2="385.6" y2="300.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="385.6" y="315.0" font-size="11" fill="#6b6a65" text-anchor="middle">4</text>
+<line x1="459.0" y1="96.0" x2="459.0" y2="300.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="459.0" y="315.0" font-size="11" fill="#6b6a65" text-anchor="middle">6</text>
+<line x1="532.3" y1="96.0" x2="532.3" y2="300.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="532.3" y="315.0" font-size="11" fill="#6b6a65" text-anchor="middle">8</text>
+<line x1="605.6" y1="96.0" x2="605.6" y2="300.0" stroke="#e8e7e1" stroke-width="1"/>
+<text x="605.6" y="315.0" font-size="11" fill="#6b6a65" text-anchor="middle">10</text>
+<text x="229.0" y="117.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">Idle 15 min, no balloon</text>
+<path d="M239.0,106.0 H556.9 Q560.9,106.0 560.9,110.0 V116.0 Q560.9,120.0 556.9,120.0 H239.0 Z" fill="#8a8883" fill-opacity="0.28"/>
+<circle cx="560.9" cy="113.0" r="4.5" fill="#8a8883" stroke="#fcfcfb" stroke-width="1.5"/>
+<text x="572.9" y="117.5" font-size="12" fill="#52514e" text-anchor="start">8.78 GB</text>
+<text x="229.0" y="151.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">Idle 15 min, balloon governor</text>
+<path d="M239.0,140.0 H412.4 Q416.4,140.0 416.4,144.0 V150.0 Q416.4,154.0 412.4,154.0 H239.0 Z" fill="#2a78d6" fill-opacity="0.28"/>
+<circle cx="416.4" cy="147.0" r="4.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="1.5"/>
+<text x="428.4" y="151.5" font-size="12" fill="#52514e" text-anchor="start">4.84 GB</text>
+<text x="229.0" y="185.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">CI job, no balloon</text>
+<path d="M239.0,174.0 H593.7 Q597.7,174.0 597.7,178.0 V184.0 Q597.7,188.0 593.7,188.0 H239.0 Z" fill="#8a8883" fill-opacity="0.28"/>
+<circle cx="600.1" cy="181.0" r="4.5" fill="#8a8883" stroke="#fcfcfb" stroke-width="1.5"/>
+<circle cx="595.3" cy="181.0" r="4.5" fill="#8a8883" stroke="#fcfcfb" stroke-width="1.5"/>
+<text x="612.1" y="185.5" font-size="12" fill="#52514e" text-anchor="start">9.72–9.85 GB, 2 runs</text>
+<text x="229.0" y="219.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">CI job, balloon governor</text>
+<path d="M239.0,208.0 H563.1 Q567.1,208.0 567.1,212.0 V218.0 Q567.1,222.0 563.1,222.0 H239.0 Z" fill="#2a78d6" fill-opacity="0.28"/>
+<circle cx="563.4" cy="215.0" r="4.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="1.5"/>
+<circle cx="570.8" cy="215.0" r="4.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="1.5"/>
+<text x="582.8" y="219.5" font-size="12" fill="#52514e" text-anchor="start">8.85–9.05 GB, 2 runs</text>
+<text x="229.0" y="253.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">CI job (no GPU), no balloon</text>
+<path d="M239.0,242.0 H588.0 Q592.0,242.0 592.0,246.0 V252.0 Q592.0,256.0 588.0,256.0 H239.0 Z" fill="#8a8883" fill-opacity="0.28"/>
+<circle cx="592.0" cy="249.0" r="4.5" fill="#8a8883" stroke="#fcfcfb" stroke-width="1.5"/>
+<text x="604.0" y="253.5" font-size="12" fill="#52514e" text-anchor="start">9.63 GB</text>
+<text x="229.0" y="287.5" font-size="12.5" fill="#0b0b0b" text-anchor="end">CI job (no GPU), governor</text>
+<path d="M239.0,276.0 H558.7 Q562.7,276.0 562.7,280.0 V286.0 Q562.7,290.0 558.7,290.0 H239.0 Z" fill="#2a78d6" fill-opacity="0.28"/>
+<circle cx="562.7" cy="283.0" r="4.5" fill="#2a78d6" stroke="#fcfcfb" stroke-width="1.5"/>
+<text x="574.7" y="287.5" font-size="12" fill="#52514e" text-anchor="start">8.83 GB</text>
+<text x="422.3" y="331.0" font-size="11.5" fill="#52514e" text-anchor="middle">Host footprint (GB), lower is better</text>
+</svg>
