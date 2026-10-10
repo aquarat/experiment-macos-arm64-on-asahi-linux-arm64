@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-
+# Legacy (docs/LEGACY-BRINGUP.md): build QEMU from steelbrain-bot/reims-vgpu
+# at a pinned commit with patches/reims-*.patch. Current hosts use
+# scripts/build-qemu.sh (the aquarat forks, no patch files).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

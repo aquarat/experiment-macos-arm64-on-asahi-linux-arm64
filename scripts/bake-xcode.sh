@@ -6,7 +6,8 @@
 # Xcode downloads require an Apple ID, so the .xip must be fetched by the user
 # (developer.apple.com/download/all). The guest needs ~3x the .xip size free.
 # --ios-platform also runs `xcodebuild -downloadPlatform iOS` (simulator
-# runtime; a Metal-capable guest GPU is still needed to *run* simulators).
+# runtime). Simulators run without a GPU (GFX=none); apps that draw with Metal
+# need the GPU on Honeykrisp for their UI tests (docs/NOTES.md, "Metal").
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

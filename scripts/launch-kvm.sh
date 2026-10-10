@@ -1,5 +1,22 @@
 #!/usr/bin/env bash
-
+# Launch one macOS guest with KVM in QEMU's vmapple machine (foreground).
+# Usually called through scripts/vm-run.sh / vm-job.sh, or
+# scripts/launch-gui-kvm.sh (GDB hand-off; INJECT=0 skips it).
+#
+# Environment (defaults in brackets):
+#   QEMU_BIN      [build/qemu-fleet, else older build dirs]
+#   GUEST_DIR     bundle dir with disk.img, aux.img.trimmed, vm.json [artifacts/guest]
+#   AVPBOOTER     [~/Downloads/AVPBooter.vmapple2.bin]
+#   CPUS [8], RAM [8G], CPU_MODEL [host]
+#   GFX           reims (paravirtual GPU) | none [reims]; renderer: VK_DRIVER_FILES
+#   MEMFD         1 = guest RAM on a shared memfd [1 with GFX=reims or BALLOON=1]
+#   BALLOON       1 = virtio balloon with macos-units [0]; BALLOON_OPTS, BALLOON_QMP
+#   AUDIO         virtio | usb | none [virtio]; AUDIO_OPTS
+#   SSH_PORT [2222], SSH_BIND [127.0.0.1], GUEST_MAC, NET_DEVICE_OPTS
+#   TAP_IF, TAP_MAC  optional second NIC on an existing tap
+#   DISK_CACHE    [unsafe]; LOG_DIR [logs/]; SERIAL; QMP_SOCKET
+#   GDB_PORT, PAUSE_AT_START (on|off), CONSOLE (reims|none|gtk),
+#   REIMS_VGPU_WINDOW (0 = no host window), QEMU_EXTRA_ARGS
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

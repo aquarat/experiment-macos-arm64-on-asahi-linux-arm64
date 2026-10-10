@@ -7,7 +7,11 @@
 # JOB_TIMEOUT (3600 s), KEEP=1 to keep the guest's disk after the job,
 # RUNNER_KEY (~/.ssh/vmapple_runner), BOOT_RETRIES (2: a guest that never
 # reaches SSH is discarded and booted again from a fresh clone),
-# KEEP_ON_BOOT_FAIL=1 to leave such a guest running for inspection.
+# KEEP_ON_BOOT_FAIL=1 to leave such a guest running for inspection,
+# BALLOON=1 (+ BALLOON_GOVERNOR=0 to skip the governor; tunables in
+# scripts/balloon-governor.py). Launcher settings (GFX, VK_DRIVER_FILES, AUDIO,
+# TAP_IF, QEMU_BIN, ...) pass through vm-run.sh to scripts/launch-kvm.sh.
+# Logs end up in artifacts/job-logs/<job>/.
 #
 # The guest is a reflink clone of the golden bundle (scripts/vm-run.sh), so a
 # job never changes the golden image, and its memory is returned to the host

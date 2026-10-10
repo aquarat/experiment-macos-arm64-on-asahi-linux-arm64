@@ -3,7 +3,8 @@
 Reusable findings from running macOS 13.6 Ventura (22G120) and macOS 26.4
 Tahoe (25E246) guests in QEMU's `vmapple` machine under KVM on Fedora Asahi
 Remix 44, on M1 Max (t6001) and M1 Ultra (t6002) hosts. The earlier M2 Pro /
-Fedora 42 bring-up is described in the README.
+Fedora 42 bring-up is described in [LEGACY-BRINGUP.md](LEGACY-BRINGUP.md);
+how to run the current setup is in the [README](../README.md).
 
 ## Host kernel
 
@@ -43,6 +44,39 @@ kernel updates are held.
 
 ## QEMU / Reims build
 
+`scripts/build-qemu.sh [OUTDIR]` (default `build/qemu-fleet`) clones
+aquarat/reims-vgpu at `REIMS_REF` (default `master`), initialises its
+`vendor/qemu` submodule (aquarat/qemu-reims-vgpu at the commit Reims pins;
+`QEMU_URL` overrides the source, e.g. a local repository with unpushed
+commits) and builds `qemu-system-aarch64` with the Vulkan Reims backend. An
+existing OUTDIR is updated in place. It writes `OUTDIR/BUILD-MANIFEST`: the
+Reims and QEMU URLs and commits, the binary's SHA-256, and the build time.
+`launch-kvm.sh` and `check-host.sh` use `build/qemu-fleet` when it exists;
+`QEMU_BIN` selects another binary.
+
+What the QEMU fork adds on top of upstream QEMU and steelbrain's
+`vmapple`/Reims branch (details in the sections below):
+
+- KVM for `vmapple`, the PAuth HVC service, and the PAC HVC result in x0
+  (macOS 26);
+- BDIF disk sizes other than 64 GiB;
+- headless polling of the Reims MMIO device, and `gfx-device=none`;
+- the `avp,rtc` clock;
+- `x-fix-overlapping-used` (on for `vmapple`): relocates a used ring that
+  macOS 26 places inside the available ring;
+- `virtio-balloon-pci` `macos-units` (and `macos-hold`) for Apple's balloon
+  driver;
+- virtio-sound answers to empty JACK_INFO/CHMAP_INFO queries;
+- `max-instances` (default 2): a third `vmapple` guest on one host refuses
+  to start;
+- packed page views of memfd guest RAM on Linux and THP-aligned guest RAM,
+  for Reims;
+- the Reims device drain on a worker thread instead of QEMU's main loop
+  ([PERFORMANCE.md](PERFORMANCE.md#how-the-bugs-were-found)).
+
+`scripts/sync-upstream.sh merge|build|push` merges upstream QEMU and Reims
+into both forks and bumps `vendor/qemu`.
+
 Fedora packages: `ninja-build meson glib2-devel pixman-devel gtk3-devel
 vulkan-loader-devel vulkan-headers libslirp-devel libfdt-devel
 zlib-ng-compat-devel libepoxy-devel wayland-devel libxkbcommon-devel
@@ -57,9 +91,18 @@ gnutls-devel nettle-devel gdb socat qemu-img`, plus cargo/rustc.
   `x-fix-overlapping-used` (on for `vmapple`) about one macOS 26 boot in 12
   never configures its network and one in 20 has no audio device. See
   "AppleVirtIO split ring layout bug".
-- **Renderer.** Reims on the host GPU (Honeykrisp) aborts: Mesa's AGX compiler
-  asserts on a 16-bit varying (`value.size == AGX_SIZE_32`). Use llvmpipe:
-  `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.aarch64.json`.
+- **Renderer.** Stock Honeykrisp (Mesa's Asahi Vulkan driver) aborts QEMU:
+  the iOS simulator's vertex shaders write 16-bit varyings and Mesa's AGX
+  compiler asserts (`Packing assertion failed: st_vary … value.size ==
+  AGX_SIZE_32`). `patches/mesa/0001-asahi-widen-16-bit-varyings-before-st_vary.patch`
+  widens them to 32 bits (the fragment side already reads them as 32-bit).
+  `scripts/build-mesa-honeykrisp.sh` builds the host's Mesa release with
+  that patch into `~/opt/mesa-honeykrisp`, without touching the system Mesa;
+  `scripts/host-gpu-setup.sh` runs it and prints the `VK_DRIVER_FILES` value.
+  This is the renderer for GPU slots. llvmpipe
+  (`/usr/share/vulkan/icd.d/lvp_icd.aarch64.json`, still the scripts' default
+  `VK_DRIVER_FILES`) renders the desktop but cannot run the iOS simulator
+  (see "Metal" below).
 - **Headless polling.** The Reims MMIO shim only started its poll timer
   (`device_poll` + action delivery) when a host window opened. Headless
   (`-display none`), nothing polled the device and Tahoe could block in IOMFB
@@ -117,11 +160,23 @@ Provisioning (on a macOS host with macosvm):
   32 MiB payload. Boots under VZ modify it, so regenerate the trimmed copy
   after every macOS-side boot.
 
-Headless guest settings baked into images: `pmset -a sleep 0 displaysleep 0
-disksleep 0 standby 0 powernap 0`, Spotlight indexing off, screen saver off,
-automatic updates off (see limits below), NTP on.
+Headless guest settings baked into images (layer 10): `pmset -a sleep 0
+displaysleep 1 disksleep 0 standby 0 powernap 0` (display sleep after a
+minute: with it off, WindowServer composites the invisible display forever),
+Spotlight indexing off, screen saver off, NTP on. Automatic update checks
+cannot be turned off from inside the image (see limits below).
 
 ## Metal
+
+Current state: GPU slots run Reims on Honeykrisp (above) with guest RAM on
+a shared memfd (`MEMFD=1`, the default with the GPU: Reims maps scattered
+guest pages through it) and images with layer 65
+([IMAGES.md](IMAGES.md#65-gpu-headless--v14)). The iOS simulator and UI tests
+run there; results, the bugs fixed on the way and the open gaps are in
+[PERFORMANCE.md](PERFORMANCE.md). `scripts/host-gpu-setup.sh` sets shmem THP
+to `advise` (so that memory can use huge pages) and khugepaged's
+`max_ptes_none` to 0 (so it does not refill balloon holes). The rest of this
+section is the earlier bring-up on llvmpipe.
 
 Tahoe's paravirtual GPU does attach: IORegistry `gfx@20200000`
 (`paravirtualizedgraphics,gpu`) with `AppleParavirtGPU`/`AppleParavirtDisplay`,
@@ -131,17 +186,23 @@ runtime-compiled compute kernel ran correctly through Reims on host llvmpipe.
 
 `gfx-device=none` (QEMU machine option; `GFX=none` in `launch-kvm.sh`) boots
 Tahoe without a paravirtual GPU: no Metal device, the gfx node stays in the
-device tree, boot time unchanged (~17 s). It is the better CI default:
+device tree, boot time unchanged (~17 s). It remains the default for runner
+slots whose jobs do not need Metal:
 
-- With the GPU, an idle headless guest's WindowServer uses ~82 % of a core
-  (software rendering through llvmpipe); without it, 0.4 %.
+- With the GPU on llvmpipe, an idle headless guest's WindowServer used ~82 %
+  of a core (software rendering, display sleep off); without a GPU, 0.4 %.
+  Layer 65 now lets the display sleep after a minute, so WindowServer idles.
 - Without a GPU, Xcode 26.4.1 builds iOS code (Swift package, `generic/platform=iOS`
   in 26 s, `generic/platform=iOS Simulator` in 8 s), an iOS 26.4.1 simulator
   boots (74 s) and `xcodebuild test` runs XCTest in it (83 s including boot).
-- With the GPU, booting an iOS simulator aborted QEMU on the host: llvmpipe's
-  LLVM backend cannot compile a `v4f16 = bitcast` in a fragment shader
-  ("Cannot select", `fs_variant_partial`). Same FP16 weakness as above,
-  reached through a different shader.
+- With the GPU on llvmpipe, booting an iOS simulator aborted QEMU on the
+  host: llvmpipe's LLVM backend cannot compile a `v4f16 = bitcast` in a
+  fragment shader ("Cannot select", `fs_variant_partial`). On the patched
+  Honeykrisp the simulator runs.
+- Without a GPU, WindowServer aborts about once a minute ("No suitable Metal
+  devices present") and ReportCrash/spindump symbolication reads gigabytes
+  into the file cache. Non-GPU runner slots run `GFX=none` because each guest
+  lives for one job; do not keep `GFX=none` guests running for hours.
 
 ## The `avp,rtc` clock
 
@@ -673,9 +734,11 @@ move into `audiomxd`, neither of which a guest without Bluetooth or a user
 session uses. Without the layer, a job that plays audio on the macOS side
 should `sudo killall audiomxd` afterwards.
 
-In one boot out of about eight in this work, `AppleVirtIOSound` stayed
-`!registered` (no output device; `afplay` failed with -66680); the next boot of
-the same disk was fine. Not investigated.
+In some boots `AppleVirtIOSound` stayed `!registered` (no output device;
+`afplay` failed with -66680) while the next boot of the same disk was fine.
+That was the ring layout bug in the sound control queue; with the fork's
+`x-fix-overlapping-used` it no longer happens (see "virtio-sound and
+AppleVirtIOSound" above).
 
 ## Disk cache
 
@@ -740,6 +803,30 @@ down. `vm-job.sh` runs the job SSH session in the background with `<&0` and
     `one-job --wait`.
   - A Forgejo on the VM host itself is reachable from guests at
     `http://10.0.2.2:<port>` (slirp); set its `ROOT_URL` accordingly.
+- **Slots and labels**: `VM_SLOTS` slots per host (at most two, the licence
+  limit; `vm-run.sh start` waits for a free macOS instance). Forgejo labels
+  default to `macos-26-arm64:host,macos:host` (`RUNNER_LABELS`); GitHub to
+  `macOS,ARM64,vmapple`.
+- **GPU slots** (Forgejo orchestrator): the slot numbers in `GPU_SLOTS` boot
+  with `GFX=reims` from `GPU_GOLDEN` (an image with layer 65), optionally
+  with their own `GPU_QEMU_BIN` and `GPU_VK_DRIVER_FILES`, and add
+  `GPU_LABELS` (default `macos-26-arm64-gpu:host`). The other slots keep the
+  profile's settings, typically `GFX=none`.
+- **Simulator readiness**: before registering (or starting `one-job`), the
+  guest waits until `xcrun simctl list devices available` lists devices.
+  The first `xcodebuild` after boot otherwise failed with "Unable to find a
+  device matching the provided destination specifier" in about 1 job in 6.
+- **DNS**: after a network outage mDNSResponder can cache a negative answer
+  for the forge for up to an hour. A guest-side watchdog checks every 30 s
+  and flushes the cache when the system resolver has no address but a
+  direct query does (log: `/tmp/dns-watchdog.log` in the guest).
+- **Logs**: each job's serial console, launcher, Reims failure log
+  (`reims-fail.log`, capped at 64 MiB; the draw log is off unless
+  `REIMS_VGPU_DRAW_LOG_PATH` is set), balloon governor log and `env.txt` are
+  moved to `artifacts/job-logs/<job>/` when the guest is discarded.
+- `vm-job.sh` and the orchestrators use `set -uo pipefail` without `-e` on
+  purpose: they must capture a failing job's status and still shut the guest
+  down and clean up.
 - Known gap: a slot stopped before it gets a job (service restart, host
   reboot) leaves its ephemeral registration offline in Forgejo until removed
   by an admin; in API mode the orchestrator deletes it.

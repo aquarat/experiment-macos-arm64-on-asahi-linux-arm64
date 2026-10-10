@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-
+# Launch a guest through scripts/launch-kvm.sh. By default (INJECT=1) QEMU
+# starts paused and scripts/inject-xnu-kvm.sh uses GDB to pass XNU_BOOT_ARGS
+# and apply the XNU GIC store correction (needed on host kernels without
+# patches/linux-7.1.13-kvm-nisv-ldst.patch, and for single-user boots).
+# INJECT=0 runs launch-kvm.sh directly. Other settings: see launch-kvm.sh.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

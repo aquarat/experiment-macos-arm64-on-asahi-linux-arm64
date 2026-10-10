@@ -32,6 +32,10 @@ v5 (`launchctl disable` timed) did not help the boot stall; v8 (software
 update settings) had no effect on 26.4. In the reference chain v0 and v1 were
 one bundle (layer 10 ran in the same session as the account creation).
 
+Which bundle to run: the end of the chain without layer 65 (`-v13` in the
+reference) for runner slots without the GPU (`GFX=none`), and the layer-65
+bundle (`-v14`) for GPU slots (`GPU_GOLDEN`, see the README's "GPU slot").
+
 Layer 60, `images/60-ci-tools.sh`: Homebrew (installer pinned by commit),
 JDK 21, actionlint, shellcheck, xcodegen, xcbeautify, SwiftLint, Carthage,
 CocoaPods, fastlane; versions recorded in the image.
@@ -95,8 +99,13 @@ CocoaPods, fastlane; versions recorded in the image.
   `scripts/build-host-kernel.sh <base .src.rpm> vmapple2` (see NOTES.md, Host
   kernel). `dmesg` must show `ACTLR virtualization (IMPDEF, Apple)`.
 - QEMU from `scripts/build-qemu.sh` (Fedora packages listed in NOTES.md). This
-  QEMU has the `avp,rtc` clock, the BDIF disk-size and PAC-HVC fixes, so every
-  bake runs under it. Check: `cat build/qemu-fleet/BUILD-MANIFEST`.
+  QEMU has the `avp,rtc` clock, the BDIF disk-size and PAC-HVC fixes, the
+  used-ring fix for the boot stall, and the virtio-sound and balloon changes
+  (full list in NOTES.md, "QEMU / Reims build"), so every bake runs under it.
+  Check: `cat build/qemu-fleet/BUILD-MANIFEST` (Reims and QEMU commits, binary
+  hash).
+- For layer 65 (GPU images): `scripts/host-gpu-setup.sh`, which builds the
+  patched Honeykrisp driver and prints its `VK_DRIVER_FILES` value.
 - `gdb`, `socat`, `python3`, `zstd`; btrfs for `~/vm-artifacts` and the checkout.
 - Disk: ~25 GB per base bundle, +10 GB for Xcode, +9 GB for the iOS runtime,
   plus room for one running clone. 16 GiB RAM for a bake guest.
@@ -245,8 +254,9 @@ missing from the bake output, the layer did not finish (see Pitfalls).
 If the script fails, `bake-golden.sh` stops before the shutdown: the guest is
 still running as `bake-<dst>-<pid>`. Quit it with `scripts/vm-run.sh quit
 bake-<dst>-<pid>` and delete `artifacts/runs/bake-<dst>-<pid>`; nothing is
-promoted. `GFX=none` (no paravirtual GPU) is fine for every bake and saves
-the ~80 % of a core that WindowServer burns on llvmpipe.
+promoted. `GFX=none` (no paravirtual GPU) is fine for every bake except
+layer 65, and avoids the cost of software rendering when `VK_DRIVER_FILES`
+is llvmpipe (the scripts' default).
 
 Verify any layer with a throwaway job:
 
@@ -383,8 +393,10 @@ Xcode (here iOS 26.4.1, 23E254a, an 8.46 GB MobileAsset from
 wired host. Check: `xcrun simctl list runtimes` → `iOS 26.4 (26.4.1 - 23E254a)`;
 a smoke test: `xcrun simctl boot "iPhone 17"` (74 s on first boot).
 
-Run simulators with `GFX=none`: with the paravirtual GPU, booting a simulator
-aborts QEMU on the host (llvmpipe cannot compile an FP16 fragment shader).
+Run simulators with `GFX=none` or with the GPU on the patched Honeykrisp
+(`VK_DRIVER_FILES` from `scripts/host-gpu-setup.sh`). With the GPU on
+llvmpipe, booting a simulator aborts QEMU on the host (llvmpipe cannot
+compile an FP16 fragment shader).
 
 ### 60: CI toolchain → v11
 
@@ -475,13 +487,16 @@ scripts/bake-golden.sh ~/vm-artifacts/tahoe-26.4-25E246-v13 ~/vm-artifacts/tahoe
     "GPU headless (images/65-gpu-headless.sh)" "bash -s" < images/65-gpu-headless.sh
 ```
 
-Bake with the paravirtual GPU on (default `GFX`, a working `VK_DRIVER_FILES`):
-the layer fails without a Metal device. It sets display sleep to 1 minute
+Bake with the paravirtual GPU on (default `GFX=reims`) and
+`VK_DRIVER_FILES` set to the patched Honeykrisp from
+`scripts/host-gpu-setup.sh`: the layer fails without a Metal device.
+This bundle is the `GPU_GOLDEN` for GPU runner slots. It sets display sleep to 1 minute
 (images built before layer 10 changed had it off, and WindowServer then
 composites the invisible display forever) and deletes crash/spin reports
-left by earlier bakes. Never bake or run Tahoe guests with `GFX=none` for
+left by earlier bakes. Do not keep Tahoe guests running with `GFX=none` for
 long: without Metal, WindowServer aborts every minute and the crash-report
-symbolication fills the guest's memory with file cache.
+symbolication fills the guest's memory with file cache. Short bakes and
+one-job CI guests are fine.
 
 ## Runner cache
 

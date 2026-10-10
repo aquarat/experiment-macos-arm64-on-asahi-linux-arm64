@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-
+# Check the host: AArch64, /dev/kvm access, and a QEMU with the vmapple
+# machine (QEMU_BIN, else build/qemu-fleet from scripts/build-qemu.sh).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

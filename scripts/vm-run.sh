@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# One VM experiment per invocation, from a read-only golden bundle.
+# One VM per invocation, from a read-only golden bundle.
 #
-#   GOLDEN=~/vm-artifacts/<bundle> scripts/vm-run.sh start <name>   [env passed to launch-gui-kvm.sh]
+#   GOLDEN=~/vm-artifacts/<bundle> scripts/vm-run.sh start <name>   [env passed to launch-gui-kvm.sh / launch-kvm.sh]
 #   scripts/vm-run.sh status <name>
 #   scripts/vm-run.sh qmp <name> '<json command>'
 #   scripts/vm-run.sh screenshot <name>     # writes artifacts/runs/<name>/screen-<time>.png
@@ -16,8 +16,9 @@ runs="$repo_root/artifacts/runs"
 golden="${GOLDEN:-$HOME/vm-artifacts/ventura-13.6-22G120-v2}"
 booter="${AVPBOOTER:-$repo_root/artifacts/firmware/AVPBooter.vmapple2.mBoot-18000.101.7.bin}"
 sock_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/vmapple"
-# Mesa's AGX compiler asserts on Reims FP16 shaders (see docs/NOTES.md); llvmpipe is the
-# known-good renderer until Honeykrisp is qualified.
+# Default Vulkan driver: llvmpipe (software). It cannot run the iOS simulator;
+# GPU slots set VK_DRIVER_FILES to the patched Honeykrisp from
+# scripts/host-gpu-setup.sh (see docs/NOTES.md, "QEMU / Reims build").
 export VK_DRIVER_FILES="${VK_DRIVER_FILES:-/usr/share/vulkan/icd.d/lvp_icd.aarch64.json}"
 
 die() { echo "error: $*" >&2; exit 1; }
