@@ -37,7 +37,8 @@ What it provides:
 ## Results
 
 On the 2026-10-10 GPU build, simulator unit tests in a macOS 26 guest with
-the GPU take as long as without one (155.8 s, against 154.4 s and 160.0 s).
+the GPU take as long as without one (a median of 156.4 s over four runs,
+against 154.4 s and 160.0 s).
 The UI tests of an app that cannot run without a GPU run about 1.6x faster
 than on the earlier GPU build. Since the QEMU used-ring fix, no macOS 26 boot
 in 200 has stalled (17 of 203 before). Charts, method and more results:
@@ -287,8 +288,9 @@ moving bundles between hosts: [docs/IMAGES.md](docs/IMAGES.md).
   apps can come out blank or flat colour. UI tests that drive the app
   through accessibility pass. This is being fixed.
 - **GPU slot open issues** ([PERFORMANCE.md](docs/PERFORMANCE.md)):
-  `memcpy` takes 70 % of the drain's CPU time, part of it an extra copy that
-  can go. GPU slots need Honeykrisp Mesa built with this project's patch
+  `memcpy` takes 70 % of the drain's CPU time, part of it an extra copy. A
+  build that removes it halves the drain's `memcpy` cycles; it is measured
+  but not deployed yet. GPU slots need Honeykrisp Mesa built with this project's patch
   (`scripts/build-mesa-honeykrisp.sh`), not the distribution's Mesa. llvmpipe
   cannot run the iOS simulator. Only the Forgejo orchestrator has per-slot
   GPU settings.

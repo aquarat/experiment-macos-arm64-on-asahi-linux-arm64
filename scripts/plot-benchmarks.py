@@ -13,7 +13,7 @@ Data layout (docs/benchmarks/data/, one row per measured run):
 
 - series.csv       series id -> chart label, colour role, description
 - metrics.csv      metric id -> panel title, unit, axis label
-- unit-test.csv, ui-tests.csv, balloon.csv, copy-path.csv
+- unit-test.csv, ui-tests.csv, drain.csv, balloon.csv, copy-path.csv
                    runs: date,series,run,reims,qemu,metric,value,unit,source
 - ranges.csv       results reported only as a range (or a note):
                    date,series,metric,low,high,unit,note,source
@@ -23,7 +23,7 @@ Data layout (docs/benchmarks/data/, one row per measured run):
 Rows of a runs chart follow the order of series.csv (keep it chronological);
 reliability and boot rows follow their own files. A new series needs a line
 in series.csv; a new metric needs a line in metrics.csv. copy-path.svg is
-drawn only once copy-path.csv has rows.
+drawn only when copy-path.csv has rows.
 """
 
 import argparse
@@ -50,7 +50,8 @@ BAND = "#ecebe6"
 ROLE = {
     "reference": "#8a8883",  # no GPU / no balloon
     "main": "#2a78d6",       # builds along the way
-    "highlight": "#eb6834",  # the build the story ends on
+    "highlight": "#eb6834",  # the deployed build
+    "next": "#4a3aa7",       # measured, not deployed yet
 }
 GOOD = "#0ca30c"
 BAD = "#d03b3b"
@@ -470,7 +471,7 @@ def build(data):
         data, unit, ["unit_test_wall"],
         "iOS simulator unit tests: GPU builds against no GPU",
         ["macOS 26 guest, 4 vCPU / 8 GB. Dots are runs, pale bars their mean, capsules a reported range.",
-         "Orange is the build deployed on 2026-10-10. Lower is better."],
+         "Orange: the build deployed on 2026-10-10. Violet: copy-path build, not deployed. Lower is better."],
         "Simulator unit-test wall time per build: " + "; ".join(
             f"{r['series']} {r['value']} s" for r in unit),
         ref_series="none")
@@ -480,16 +481,20 @@ def build(data):
         "UI tests on a GPU-accelerated macOS 26 guest",
         ["An iOS app's offline XCUITest suite: lab runs (8 vCPU / 12 GB, 12 of 14 pass in every GPU mode),",
          "then production CI on an M1 Ultra host (8 vCPU / 24 GB; 12/14 passed, then 14/14). Last two panels:",
-         "a small SwiftUI XCUITest, 8 vCPU / 16 GB. Dots are runs, pale bars their mean, capsules a reported range."],
+         "a small SwiftUI XCUITest, 8 vCPU / 16 GB. Dots are runs, pale bars their mean, capsules a reported range.",
+         "Orange: the build deployed on 2026-10-10. Violet: copy-path build, not deployed."],
         "UI test wall times: " + "; ".join(f"{r['metric']} {r['series']} {r['value']} s" for r in ui))
+    drain = data.runs("drain.csv")
     charts["drain.svg"] = runs_chart(
-        data, [], ["tranche_p90", "tranche_max", "vcpu_wait_total", "drain_busy"],
+        data, drain, ["tranche_p90", "tranche_max", "vcpu_wait_total", "drain_busy"],
         "Reims drain behaviour over a UI-test session",
         ["How long the device's command drain runs without a break (a tranche), how long vCPUs",
-         "wait for the device lock, and total drain busy time. Capsules span the runs of each build."],
-        "Drain ranges per build: " + "; ".join(
+         "wait for the device lock, and total drain busy time. 8 vCPU / 12 GB. Capsules span the",
+         "reported runs of a build, dots are individual runs. Violet: copy-path build, not deployed."],
+        "Drain per build: " + "; ".join(
             f"{r['metric']} {r['series']} {r['low']}-{r['high']} {r['unit']}"
-            for r in data.ranges if r["metric"].startswith(("tranche", "vcpu", "drain"))))
+            for r in data.ranges if r["metric"].startswith(("tranche", "vcpu", "drain")))
+        + "; runs: " + "; ".join(f"{r['metric']} {r['series']} {r['value']} {r['unit']}" for r in drain))
     charts["reliability.svg"] = reliability_chart()
     charts["boot.svg"] = boot_chart()
     balloon = data.runs("balloon.csv")
@@ -503,8 +508,10 @@ def build(data):
     if copy:
         metrics = list(dict.fromkeys(r["metric"] for r in copy))
         charts["copy-path.svg"] = runs_chart(
-            data, copy, metrics, "Reims guest-memory copy path",
-            ["Dots are runs, pale bars their mean."],
+            data, copy, metrics, "Reims copy path: one copy instead of two",
+            ["Deployed build against the copy-path build (not deployed) on the unit-test benchmark,",
+             "4 vCPU / 8 GB, runs interleaved. Cycle counts: one perf capture of the drain thread",
+             "per build. Dots are runs, pale bars their mean. Lower is better."],
             "Copy-path measurements: " + "; ".join(
                 f"{r['series']} {r['metric']} {r['value']} {r['unit']}" for r in copy))
     return {k: v for k, v in charts.items() if v}

@@ -16,8 +16,9 @@ driver).
 ## Highlights
 
 - macOS 26 guests with GPU-accelerated Metal run on Linux. With the
-  2026-10-10 build, CPU-bound simulator unit tests take 155.8 s with the GPU
-  device, against 154.4 s and 160.0 s without it.
+  2026-10-10 build, CPU-bound simulator unit tests take as long with the GPU
+  device as without it: a median of 156.4 s over four runs (153.2–184.2 s),
+  against 154.4 s and 160.0 s.
 - An iOS app's 14-test XCUITest suite takes 640–766 s on that build, against
   1119–1170 s with the drain on QEMU's main loop: about 1.6x faster. Without
   a GPU the app cannot run its UI tests at all.
@@ -26,11 +27,17 @@ driver).
   14 the day before. That commit also raised two test waits from 10 s to
   30 s, so not all of the gain is the GPU build's.
 - A small SwiftUI UI test, run a second time, takes 53 s with the GPU and
-  the drain worker, and 69 s without a GPU. The app reaches idle in 3 s instead of 22 s (software
-  rendering).
+  the drain worker, and 69 s without a GPU. The app reaches idle in 3 s
+  instead of 22 s (software rendering).
 - The longest uninterrupted device drain fell from 6.2–9.7 s to 2.6–3.5 s.
   vCPU time lost waiting for the device fell from 100–135 s to 17–19 s per
   session.
+- A copy-path build, not deployed yet, copies directly between guest RAM
+  and mapped Vulkan memory. It halves the drain thread's CPU cycles
+  (95.2 G to 53.5 G in a 90 s window) and its `memcpy` cycles (66.1 G to
+  33.3 G), and cuts the sustained tranche p90 from 1.40–1.53 s to
+  157–184 ms. Test wall times do not change, because the tests are not
+  limited by the drain.
 - Under sustained simulator load: 12 of 12 runs clean since the round-robin
   drain, 5 of 5 sustained stress runs on the deployed build (183 of 183 UI
   loops), no guest panic and no host GPU hang.
@@ -49,15 +56,18 @@ driver).
 With the drain on QEMU's main loop, GPU guests took 204–225 s, well behind
 the no-GPU runs; the first drain-worker prototype took 177–228 s. The stamp
 fix brought the main-loop drain to 196.7 s. The drain worker on top of it
-brought GPU guests into the no-GPU band (shaded), and the final build stays
-there.
+brought GPU guests into the no-GPU band (shaded). The deployed build stays
+close to it: three of its four runs are inside or just below the band, one
+took 184.2 s. The copy-path build (158.0–161.2 s) is no faster here, because
+this benchmark does not wait on the drain.
 
 ### UI tests
 
 ![UI-test wall times per build](benchmarks/ui-tests.svg)
 
-Top: the app's suite is about 1.6x faster on the final build than with the
-drain on the main loop. Second: the same suite as a production CI job, one
+Top: the app's suite is about 1.6x faster on the deployed build than with
+the drain on the main loop. The copy-path build ran it in 675–819 s, within
+the noise of the deployed build's 640–766 s. Second: the same suite as a production CI job, one
 run per build; the 2026-10-10 run passed 14 of 14 (12 of 14 before), with
 two test waits raised from 10 s to 30 s in the same commit and an unrelated
 low-priority CPU load on the host, so its time is conservative. Below: with the drain worker a small SwiftUI test is
@@ -70,9 +80,11 @@ run in a fresh image still pays for one-off simulator setup in every mode.
 
 A tranche is how long the device drains guest commands without a break. The
 main-loop build has the shortest tranches, but its vCPUs wait behind QEMU's
-big lock instead, which showed up as dropped SSH sessions. The final build
-keeps the worker. Against the worker build without compaction it cuts the
-longest tranche by more than half and the vCPU wait by over 80 %.
+big lock instead, which showed up as dropped SSH sessions. The deployed
+build keeps the worker. Against the worker build without compaction it cuts
+the longest tranche by more than half and the vCPU wait by over 80 %. The
+copy-path build (violet, not deployed) cuts the tranche p90 to 157–184 ms,
+the longest tranche to 1.5–1.8 s and busy time to 393–402 s.
 
 ### Stability
 
@@ -81,6 +93,22 @@ longest tranche by more than half and the vCPU wait by over 80 %.
 Before the IOSurface ring fix, 7 of 8 long runs lost the guest. Every series
 since has been clean except the worker prototype before the stamp fix (two
 host GPU hangs) and one early guest panic in the worker series.
+
+### Copy path (not deployed yet)
+
+![Drain busy time, tranche p90 and CPU cycles: deployed build against the copy-path build](benchmarks/copy-path.svg)
+
+The deployed build moves guest data through an intermediate buffer: guest
+pages into a heap buffer, then into Vulkan staging memory, and readbacks the
+same way back. The copy-path build (Reims e82389b59b, branch `gpu-copy`)
+copies directly between guest RAM and mapped Vulkan memory. On the unit-test
+benchmark, with runs interleaved, drain busy time fell from 148–164 s to
+115–118 s and the tranche p90 from 116–215 ms to 51–58 ms. In one 90 s perf
+window per build, the drain thread used 53.5 G cycles instead of 95.2 G, and
+`memcpy` 33.3 G instead of 66.1 G. The benchmark's wall time did not move
+outside noise (three interleaved runs each: mean 164.8 s, range 153.2–184.2 s,
+against 160.0 s, 158.0–161.2 s), because that test is not limited by the drain. Three
+sustained runs were clean (114 of 114 loops). The build is not deployed yet.
 
 ### Boot reliability
 
@@ -156,7 +184,8 @@ Known gaps on the deployed build:
 - Pipelines with no fragment function are refused, so screenshots of
   Compose/Skia apps are mostly flat colour. Being fixed.
 - After compaction, `memcpy` is 70 % of the drain's CPU time. About 44 %
-  of that is an extra copy through an intermediate buffer, which can go.
+  of that is an extra copy through an intermediate buffer. The copy-path
+  build removes it (see above); it is not deployed yet.
 
 ## Methodology
 
@@ -185,6 +214,11 @@ Known gaps on the deployed build:
   shutting the simulator down.
 - **Drain figures:** Reims' own counters over a UI-test session; each
   capsule spans the runs of one build.
+- **Copy path:** the unit-test benchmark run three times per build,
+  alternating builds, plus one `perf` capture per build of the drain thread
+  over a 90 s window (DWARF call graphs). Sustained figures come from three
+  sustained runs of the copy-path build against three of the deployed
+  build.
 - **Sustained runs:** a UI test followed by repeated test reruns ("loops").
   A run is clean with no guest panic and no host GPU job timeout.
 - **Boots:** [`scripts/debug/boot-reliability.sh`](../scripts/debug/boot-reliability.sh),
@@ -198,14 +232,16 @@ Known gaps on the deployed build:
 
 1. Add rows to the CSV in [benchmarks/data/](benchmarks/data/), one row per
    run:
-   - `unit-test.csv`, `ui-tests.csv`, `balloon.csv`, `copy-path.csv`:
+   - `unit-test.csv`, `ui-tests.csv`, `drain.csv`, `balloon.csv`,
+     `copy-path.csv`:
      `date,series,run,reims,qemu,metric,value,unit,source`.
    - `ranges.csv`: results known only as a range, or a note such as "cannot
      run".
    - `reliability.csv`: clean and total sustained runs per build.
    - `boot.csv`: failures and boots per configuration.
 2. A new build needs a line in `series.csv` (label, colour role
-   `reference`, `main` or `highlight`, description). Rows follow the order
+   `reference`, `main`, `highlight` for the deployed build or `next` for a
+   measured but undeployed one, description). Rows follow the order
    of `series.csv`, so keep it chronological. A new metric needs a line in
    `metrics.csv`.
 3. Run `scripts/plot-benchmarks.py` (Python 3, standard library only). It
@@ -213,5 +249,5 @@ Known gaps on the deployed build:
    writing anything.
 4. Update the highlights above if a headline number changed.
 
-`copy-path.csv` is ready for measurements of the guest-memory copy path
-(the second copy noted above); `copy-path.svg` appears once it has rows.
+`copy-path.svg` is drawn from `copy-path.csv`, one panel per metric in
+the order they first appear.
